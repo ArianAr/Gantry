@@ -309,6 +309,8 @@ const emptyRule = {
   schedule_enabled: false,
   compare_mode: 'etag',
   priority: 0,
+  bidirectional: false,
+  active_hours_utc: '',
 }
 
 export default function App() {
@@ -1057,6 +1059,19 @@ export default function App() {
               <label className="flex items-center gap-2 text-sm text-slate-300">
                 <input type="checkbox" checked={ruleForm.delete_on_target} onChange={(e) => setRuleForm({ ...ruleForm, delete_on_target: e.target.checked })} />
                 Strict mirror (delete on target)
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-300">
+                <input type="checkbox" checked={ruleForm.bidirectional} onChange={(e) => setRuleForm({ ...ruleForm, bidirectional: e.target.checked })} />
+                Bidirectional (forward then reverse; reverse never deletes)
+              </label>
+              <label className="block text-xs text-slate-400">
+                Active hours UTC (maintenance window; empty = always)
+                <input
+                  className="field"
+                  placeholder="09:00-17:00 or 09:00-12:00,13:00-18:00"
+                  value={ruleForm.active_hours_utc}
+                  onChange={(e) => setRuleForm({ ...ruleForm, active_hours_utc: e.target.value })}
+                />
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block text-xs text-slate-400 col-span-2">

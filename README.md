@@ -189,6 +189,11 @@ backup-bucket;archive:cold/
 
 Each entry is `bucket` or `bucket:prefix`. Dry-run and sync classify and transfer each destination independently (separate GetObject→PutObject per destination). `delete_on_target` applies only to the primary target.
 
+### Bidirectional & active hours
+
+- `bidirectional`: after the forward pass, run a reverse pass (source↔target). Reverse **never** deletes and does not fan out.
+- `active_hours_utc`: e.g. `09:00-17:00` — refuse starts and skip schedules outside the UTC window. Combine with `bandwidth_limit_kbps` for time-bounded bandwidth.
+
 Full product detail: [`specs.md`](./specs.md).
 
 ---

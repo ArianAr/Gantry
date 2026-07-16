@@ -452,6 +452,35 @@ func (e *Engine) DryRun(ctx context.Context, rule *db.SyncRule) (*DryRunResult, 
 		classifyAgainstDestination(result, srcObjs, extraByKey, rule, extra.Bucket, extra.Prefix, false, nil)
 	}
 
+	// Bidirectional: append reverse-direction matrix (no deletes / no fan-out on reverse).
+	if rule.Bidirectional {
+		rev := db.ReverseRule(rule)
+		revResult, err := e.DryRun(ctx, rev)
+		if err != nil {
+			return nil, fmt.Errorf("reverse dry-run: %w", err)
+		}
+		for _, it := range revResult.Items {
+			if it.Reason != "" {
+				it.Reason = "reverse: " + it.Reason
+			} else if it.Action == ActionAdd {
+				it.Reason = "reverse"
+			}
+			result.Items = append(result.Items, it)
+			switch it.Action {
+			case ActionAdd:
+				result.AddCount++
+				result.TotalBytesToSync += it.Size
+			case ActionModify:
+				result.ModifyCount++
+				result.TotalBytesToSync += it.Size
+			case ActionSkip:
+				result.SkipCount++
+			case ActionDelete:
+				// reverse never deletes
+			}
+		}
+	}
+
 	return result, nil
 }
 
@@ -463,8 +492,14 @@ func (e *Engine) StartJob(parent context.Context, ruleID string) (*db.JobRun, er
 		return nil, fmt.Errorf("rule: %w", err)
 	}
 	rule.ClampConcurrency()
-
+	if err := db.ValidateActiveHours(rule.ActiveHoursUTC); err != nil {
+		return nil, fmt.Errorf("active_hours_utc: %w", err)
+	}
 	now := time.Now().UTC()
+	if !db.InActiveHours(rule.ActiveHoursUTC, now) {
+		return nil, fmt.Errorf("outside active hours window %q (UTC)", rule.ActiveHoursUTC)
+	}
+
 	job := &db.JobRun{
 		SyncRuleID: rule.ID,
 		Status:     db.JobStatusQueued,
@@ -546,10 +581,68 @@ func (e *Engine) runJob(ctx context.Context, job *db.JobRun, rule *db.SyncRule, 
 	e.Emitter.Emit(Event{Type: EventJob, JobID: job.ID, Message: "job started", Timestamp: time.Now().UTC(), Payload: job})
 	e.log(job.ID, fmt.Sprintf("starting sync rule %q", rule.Name))
 
-	result, err := e.DryRun(ctx, rule)
-	if err != nil {
+	if !db.InActiveHours(rule.ActiveHoursUTC, time.Now().UTC()) {
+		e.failJob(job, fmt.Errorf("outside active hours window %q (UTC)", rule.ActiveHoursUTC))
+		return
+	}
+
+	// Forward pass (without reverse matrix — reverse is a separate transfer phase).
+	fwd := *rule
+	fwd.Bidirectional = false
+	if err := e.runDirection(ctx, job, &fwd, stats, true); err != nil {
+		if ctx.Err() != nil {
+			e.cancelJob(job)
+			return
+		}
 		e.failJob(job, err)
 		return
+	}
+	if ctx.Err() != nil {
+		e.cancelJob(job)
+		return
+	}
+
+	if rule.Bidirectional {
+		e.log(job.ID, "starting reverse pass (bidirectional)")
+		rev := db.ReverseRule(rule)
+		if err := e.runDirection(ctx, job, rev, stats, false); err != nil {
+			if ctx.Err() != nil {
+				e.cancelJob(job)
+				return
+			}
+			e.failJob(job, fmt.Errorf("reverse pass: %w", err))
+			return
+		}
+	}
+
+	if ctx.Err() != nil {
+		e.cancelJob(job)
+		return
+	}
+
+	completed := time.Now().UTC()
+	job.Status = db.JobStatusCompleted
+	job.CompletedAt = &completed
+	job.FilesTransferred = stats.FilesDone.Load()
+	job.BytesTransferred = stats.BytesRead.Load()
+	job.FilesFailed = stats.FilesFailed.Load()
+	job.FilesSkipped = stats.FilesSkipped.Load()
+	_ = e.DB.UpdateJobRun(job)
+	metrics.ActiveJobs.Dec()
+	metrics.JobsCompleted.Inc()
+	metrics.BytesTransferred.Add(float64(job.BytesTransferred))
+	metrics.FilesTransferred.Add(float64(job.FilesTransferred))
+	metrics.FilesFailed.Add(float64(job.FilesFailed))
+	e.log(job.ID, "job completed")
+	e.Emitter.Emit(Event{Type: EventJob, JobID: job.ID, Message: "job completed", Timestamp: completed, Payload: job})
+}
+
+// runDirection dry-runs and executes transfers for one direction.
+// When resetTotals is true, discovered/task totals are set from this pass; otherwise they accumulate.
+func (e *Engine) runDirection(ctx context.Context, job *db.JobRun, rule *db.SyncRule, stats *EngineStats, resetTotals bool) error {
+	result, err := e.DryRun(ctx, rule)
+	if err != nil {
+		return err
 	}
 
 	var tasks []transferTask
@@ -571,7 +664,6 @@ func (e *Engine) runJob(ctx context.Context, job *db.JobRun, rule *db.SyncRule, 
 			totalBytes += item.Size
 		case ActionSkip:
 			stats.FilesSkipped.Add(1)
-			job.FilesSkipped++
 		case ActionDelete:
 			bucket := item.Destination
 			if bucket == "" {
@@ -585,32 +677,35 @@ func (e *Engine) runJob(ctx context.Context, job *db.JobRun, rule *db.SyncRule, 
 			})
 		}
 	}
-	stats.TotalFiles.Store(int64(len(tasks)))
-	stats.TotalBytes.Store(totalBytes)
-	job.TotalFilesDiscovered = int64(len(result.Items))
-	job.TotalBytesDiscovered = totalBytes
+	if resetTotals {
+		stats.TotalFiles.Store(int64(len(tasks)))
+		stats.TotalBytes.Store(totalBytes)
+		job.TotalFilesDiscovered = int64(len(result.Items))
+		job.TotalBytesDiscovered = totalBytes
+	} else {
+		stats.TotalFiles.Add(int64(len(tasks)))
+		stats.TotalBytes.Add(totalBytes)
+		job.TotalFilesDiscovered += int64(len(result.Items))
+		job.TotalBytesDiscovered += totalBytes
+	}
 	job.FilesSkipped = stats.FilesSkipped.Load()
 	_ = e.DB.UpdateJobRun(job)
 
 	srcP, err := e.DB.GetProvider(rule.SourceProviderID)
 	if err != nil {
-		e.failJob(job, err)
-		return
+		return err
 	}
 	dstP, err := e.DB.GetProvider(rule.TargetProviderID)
 	if err != nil {
-		e.failJob(job, err)
-		return
+		return err
 	}
 	srcCli, err := NewClient(ctx, *srcP)
 	if err != nil {
-		e.failJob(job, err)
-		return
+		return err
 	}
 	dstCli, err := NewClient(ctx, *dstP)
 	if err != nil {
-		e.failJob(job, err)
-		return
+		return err
 	}
 
 	workers := rule.ConcurrencyLimit
@@ -632,7 +727,6 @@ func (e *Engine) runJob(ctx context.Context, job *db.JobRun, rule *db.SyncRule, 
 		}(workerID)
 	}
 
-	// Progress ticker
 	doneCh := make(chan struct{})
 	go func() {
 		t := time.NewTicker(400 * time.Millisecond)
@@ -665,41 +759,23 @@ func (e *Engine) runJob(ctx context.Context, job *db.JobRun, rule *db.SyncRule, 
 		}
 	}()
 
-	for _, t := range tasks {
+	for _, tsk := range tasks {
 		select {
 		case <-ctx.Done():
 			close(taskCh)
 			wg.Wait()
 			close(doneCh)
-			e.cancelJob(job)
-			return
-		case taskCh <- t:
+			return ctx.Err()
+		case taskCh <- tsk:
 		}
 	}
 	close(taskCh)
 	wg.Wait()
 	close(doneCh)
-
 	if ctx.Err() != nil {
-		e.cancelJob(job)
-		return
+		return ctx.Err()
 	}
-
-	completed := time.Now().UTC()
-	job.Status = db.JobStatusCompleted
-	job.CompletedAt = &completed
-	job.FilesTransferred = stats.FilesDone.Load()
-	job.BytesTransferred = stats.BytesRead.Load()
-	job.FilesFailed = stats.FilesFailed.Load()
-	job.FilesSkipped = stats.FilesSkipped.Load()
-	_ = e.DB.UpdateJobRun(job)
-	metrics.ActiveJobs.Dec()
-	metrics.JobsCompleted.Inc()
-	metrics.BytesTransferred.Add(float64(job.BytesTransferred))
-	metrics.FilesTransferred.Add(float64(job.FilesTransferred))
-	metrics.FilesFailed.Add(float64(job.FilesFailed))
-	e.log(job.ID, "job completed")
-	e.Emitter.Emit(Event{Type: EventJob, JobID: job.ID, Message: "job completed", Timestamp: completed, Payload: job})
+	return nil
 }
 
 func (e *Engine) workerLoop(
