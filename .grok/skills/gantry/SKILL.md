@@ -89,28 +89,34 @@ docker run --rm -p 8080:8080 -v gantry-data:/data gantry:local
 
 ## Waiting for CI (do not get stuck)
 
-**Never** use long unbounded `sleep` loops in the agent. They hit tool timeouts and look hung.
+**Never** use long unbounded `sleep` loops. They hit agent/tool timeouts and look hung.
 
-### Preferred one-shot patterns
+### Agent policy (mandatory)
+
+1. **Snapshot first** (single command, no wait):
+   ```bash
+   gh pr checks <N>
+   # or
+   gh pr view <N> --json statusCheckRollup --jq \
+     '{checks:[.statusCheckRollup[]?|{name,status,conclusion}]}'
+   ```
+2. **If already all SUCCESS** → merge immediately. Do not watch.
+3. **If any FAILURE** → fetch logs and fix. Do not watch.
+4. **If pending** → either:
+   - Run a **bounded** wait with a **short** wall clock (≤ **120s** per agent step), then snapshot again; **or**
+   - Tell the user CI is still running and continue other work; re-check later with another snapshot.
+5. **Never** chain multi-minute `sleep` loops or `timeout` > 180s inside a single agent tool call (the tool wrapper will background/kill and look stuck).
+6. Prefer multiple short turns over one long block.
+
+### Helper script (local / human use)
 
 ```bash
-# 1) Instant snapshot (no wait)
-gh pr checks <N>
-gh pr view <N> --json statusCheckRollup --jq '{checks:[.statusCheckRollup[]?|{name,status,conclusion}]}'
-
-# 2) Bounded wait (hard wall clock) — use the helper
-scripts/wait-pr-ci.sh <N> 600    # exit 0 green, 1 failed, 2 timeout
-
-# 3) Equivalent without script
-timeout 600 gh pr checks <N> --watch --interval 10 --fail-fast
+scripts/wait-pr-ci.sh <N> 600   # 0=green, 1=fail, 2=timeout
+# or:
+timeout 120 gh pr checks <N> --watch --interval 10 --fail-fast
 ```
 
-### Rules for the agent
-- After `timeout` / helper exits **2**, report status to the user and **stop polling** (or one optional retry with a fresh timeout). Do not nest multi-minute sleep loops.
-- If checks are already complete, merge/fail immediately from the snapshot — do not watch.
-- Run wait commands with an explicit shell `timeout` (or the helper). Cap at **10 minutes** unless the user asks for longer (Docker jobs can be slow; still bound it).
-- On green: `gh pr merge <N> --squash --delete-branch` (or project convention).
-- On red: `gh run view <id> --log-failed` and fix — do not keep waiting.
+For agents, cap at **`scripts/wait-pr-ci.sh <N> 120`** (or plain snapshot). On exit 2, re-snapshot once; if still pending, report and stop.
 
 ## API surface (quick ref)
 
