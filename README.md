@@ -194,16 +194,24 @@ Full product detail: [`specs.md`](./specs.md).
 
 ## Supported providers
 
-Any S3-compatible API. Common configurations:
+Any S3-compatible API. The dashboard **Providers** tab includes a known-provider dropdown that pre-fills endpoint/region (all fields remain editable), plus **Custom / manual**.
 
 | Provider | Notes |
 |----------|--------|
 | AWS S3 | Empty endpoint; set region |
-| Cloudflare R2 | Account endpoint; region often `auto` |
+| Cloudflare R2 | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`; region often `auto` |
+| ArvanCloud | e.g. `https://s3.ir-thr-at1.arvanstorage.ir` |
 | MinIO | Custom endpoint; path-style addressing |
+| Alibaba OSS | Regional `oss-*.aliyuncs.com` endpoint |
+| Parspack | Endpoint from the Parspack panel |
+| Hetzner | `https://fsn1.your-objectstorage.com` (or nbg1 / hel1) |
+| Dunkel | S3-compatible German storage |
 | Backblaze B2 | S3-compatible endpoint + region |
 | Wasabi | Regional Wasabi endpoint |
-| GCS | HMAC keys + XML API endpoint |
+| DigitalOcean Spaces | Regional `*.digitaloceanspaces.com` |
+| Linode / Akamai | Cluster `*.linodeobjects.com` endpoint |
+| Scaleway / OVHcloud / IONOS / Liara / IDrive e2 | Prefills in the UI |
+| GCS | HMAC keys + `https://storage.googleapis.com` |
 
 ---
 

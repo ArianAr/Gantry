@@ -50,10 +50,9 @@ func NewClient(ctx context.Context, p db.Provider) (*Client, error) {
 		})
 	}
 
-	// Prefer provider_type heuristics for path style when endpoint empty but non-AWS.
+	// Non-AWS S3 clones require an explicit endpoint (path-style is set above when present).
 	pt := strings.ToLower(p.ProviderType)
-	if endpoint == "" && (pt == "minio" || pt == "r2" || pt == "b2" || pt == "wasabi") {
-		// Still require endpoint for non-AWS — fail early with a clear error.
+	if endpoint == "" && pt != "" && pt != "aws" && pt != "s3" {
 		return nil, fmt.Errorf("provider %q (%s): custom endpoint is required", p.Name, p.ProviderType)
 	}
 

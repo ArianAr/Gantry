@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Readiness probe `GET /readyz` (DB ping)
 - Rule `compare_mode`: `etag` (default) or `size` for skip/modify decisions
 - Multi-target fan-out: rule `extra_targets` (`bucket` or `bucket:prefix`, semicolon-separated) on the same target provider
+- Providers UI: known-provider dropdown (AWS, R2, ArvanCloud, MinIO, Alibaba, Parspack, Hetzner, Dunkel, …) with prefilled editable fields + manual entry
 
 ### Changed
 - Multi-arch Docker builds cross-compile Go on the host platform instead of QEMU-emulating arm64 (much faster image builds)
