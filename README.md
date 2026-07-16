@@ -38,6 +38,8 @@ docker run --rm -p 8080:8080 \
   ghcr.io/arianar/gantry:latest
 ```
 
+The image stores SQLite at `/data/gantry.db` (user `nonroot`). Always mount a volume on `/data` so the database persists and is writable.
+
 Open [http://localhost:8080](http://localhost:8080).
 
 Pinned versions:
