@@ -11,6 +11,7 @@ RUN npm run build
 # --- Phase 2: Go binary ---
 FROM golang:1.24-alpine AS builder
 WORKDIR /src
+ENV GOTOOLCHAIN=auto
 RUN apk add --no-cache git ca-certificates
 COPY go.mod go.sum ./
 RUN go mod download
