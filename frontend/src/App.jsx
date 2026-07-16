@@ -23,9 +23,38 @@ const tabs = [
   { id: 'providers', label: 'Providers', icon: Server },
 ]
 
+const TOKEN_KEY = 'gantry_api_token'
+
+function getStoredToken() {
+  try {
+    return sessionStorage.getItem(TOKEN_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+
+function setStoredToken(t) {
+  try {
+    if (t) sessionStorage.setItem(TOKEN_KEY, t)
+    else sessionStorage.removeItem(TOKEN_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+function authHeaders() {
+  const t = getStoredToken()
+  if (!t) return {}
+  return { Authorization: `Bearer ${t}` }
+}
+
 async function api(path, opts = {}) {
   const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(),
+      ...(opts.headers || {}),
+    },
     ...opts,
   })
   const text = await res.text()
@@ -34,6 +63,11 @@ async function api(path, opts = {}) {
     data = text ? JSON.parse(text) : null
   } catch {
     data = { error: text }
+  }
+  if (res.status === 401) {
+    const err = new Error(data?.error || 'unauthorized')
+    err.status = 401
+    throw err
   }
   if (!res.ok) {
     throw new Error(data?.error || res.statusText || 'request failed')
@@ -110,6 +144,9 @@ export default function App() {
   const [version, setVersion] = useState(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [needsAuth, setNeedsAuth] = useState(false)
+  const [tokenInput, setTokenInput] = useState(getStoredToken())
+  const [authReady, setAuthReady] = useState(false)
 
   const [providerForm, setProviderForm] = useState(emptyProvider)
   const [testResult, setTestResult] = useState(null)
@@ -132,8 +169,17 @@ export default function App() {
       setJobs(j || [])
       setVersion(v)
       setError('')
+      setNeedsAuth(false)
+      setAuthReady(true)
     } catch (e) {
+      if (e.status === 401) {
+        setNeedsAuth(true)
+        setAuthReady(true)
+        setError('Authentication required. Enter your API token.')
+        return
+      }
       setError(e.message)
+      setAuthReady(true)
     }
   }, [])
 
@@ -142,7 +188,12 @@ export default function App() {
   }, [refresh])
 
   useEffect(() => {
-    const es = new EventSource('/api/jobs/stream')
+    if (needsAuth) return undefined
+    const token = getStoredToken()
+    const url = token
+      ? `/api/jobs/stream?access_token=${encodeURIComponent(token)}`
+      : '/api/jobs/stream'
+    const es = new EventSource(url)
     es.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data)
@@ -165,7 +216,7 @@ export default function App() {
       /* browser will retry */
     }
     return () => es.close()
-  }, [refresh])
+  }, [refresh, needsAuth, tokenInput])
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -280,6 +331,64 @@ export default function App() {
     }
   }
 
+  function submitToken(e) {
+    e.preventDefault()
+    setStoredToken(tokenInput.trim())
+    setNeedsAuth(false)
+    setError('')
+    refresh()
+  }
+
+  function clearToken() {
+    setStoredToken('')
+    setTokenInput('')
+    refresh()
+  }
+
+  if (!authReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-slate-400 text-sm">
+        <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
+      </div>
+    )
+  }
+
+  if (needsAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <form onSubmit={submitToken} className="w-full max-w-md rounded-xl border border-slate-800 bg-surface-800/80 p-6 space-y-4 shadow-xl">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center">
+              <Zap className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold">Gantry</h1>
+              <p className="text-xs text-slate-400">API token required</p>
+            </div>
+          </div>
+          <p className="text-sm text-slate-400">
+            This instance has authentication enabled. Enter the shared API token configured with <code className="text-slate-300">-api-token</code> / <code className="text-slate-300">GANTRY_API_TOKEN</code>.
+          </p>
+          {error && <p className="text-sm text-red-300">{error}</p>}
+          <label className="block text-xs text-slate-400">
+            API token
+            <input
+              type="password"
+              autoFocus
+              className="mt-1 w-full rounded-md bg-surface-900 border border-slate-700 px-3 py-2 text-sm"
+              value={tokenInput}
+              onChange={(e) => setTokenInput(e.target.value)}
+              required
+            />
+          </label>
+          <button type="submit" className="w-full rounded-md bg-blue-600 hover:bg-blue-500 py-2 text-sm font-medium">
+            Continue
+          </button>
+        </form>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-slate-800/80 bg-surface-800/70 backdrop-blur sticky top-0 z-20">
@@ -298,6 +407,11 @@ export default function App() {
               <span className="hidden sm:inline font-mono px-2 py-1 rounded bg-surface-700/80 border border-slate-700">
                 v{version.version}
               </span>
+            )}
+            {getStoredToken() && (
+              <button type="button" onClick={clearToken} className="px-2 py-1 rounded border border-slate-700 hover:bg-surface-700">
+                Clear token
+              </button>
             )}
             <button
               type="button"

@@ -25,18 +25,21 @@ Include:
 
 You should receive an acknowledgment within **7 days**. Critical issues will be prioritized for a patched release.
 
-## Threat model (v1)
+## Threat model (v1+)
 
 Gantry is designed as a **self-hosted, single-operator** tool:
 
-- There is **no multi-user authentication** in v1. Anyone who can reach the HTTP port can manage providers, rules, and jobs.
+- **Optional shared API token** (`GANTRY_API_TOKEN` / `-api-token`) gates the API and UI when set. Empty token = open access (local-lab default).
+- Optional **reverse-proxy identity headers** (`-trust-proxy-headers`) must only be used when the proxy is the sole ingress.
+- There is **no multi-user RBAC**. The token is a single shared secret, not per-user accounts.
 - Provider **access keys and secrets are stored in SQLite** (`gantry.db`) on disk. Protect the host filesystem and the database file.
 - API responses **redact** secret access keys; secrets must never be logged.
-- Bind the service to localhost or place it behind a reverse proxy with TLS and access control when exposing beyond a trusted network.
+- Bind the service to localhost or place it behind a reverse proxy with TLS when exposing beyond a trusted network.
 
 ## Hardening recommendations
 
-- Run behind HTTPS (Caddy, nginx, Traefik) with authentication at the proxy if exposed.
+- Set a long random `GANTRY_API_TOKEN` on any network-reachable deployment.
+- Run behind HTTPS (Caddy, nginx, Traefik); prefer proxy auth **plus** Gantry token for defense in depth.
 - Restrict network access (firewall, VPN, private network only).
 - Use least-privilege S3 credentials (scoped buckets and prefixes).
 - Back up and encrypt `gantry.db` according to your org policy.

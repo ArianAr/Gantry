@@ -68,6 +68,7 @@ Dockerfile builds frontend/Go on `$BUILDPLATFORM` and cross-compiles with `GOARC
 
 ## Security
 
+- Optional auth via `GANTRY_API_TOKEN` / `-api-token` and proxy headers (`-trust-proxy-headers`); `/healthz` stays open
 - Redact provider secrets in API responses; never log secrets.
 - v1 is single-operator / no multi-user auth — document exposure risks in SECURITY.md.
 

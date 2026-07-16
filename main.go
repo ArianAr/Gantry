@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -24,6 +25,8 @@ var embeddedFrontend embed.FS
 func main() {
 	addr := flag.String("addr", envOr("GANTRY_ADDR", ":8080"), "HTTP listen address")
 	dbPath := flag.String("db", envOr("GANTRY_DB", "gantry.db"), "SQLite database path")
+	apiToken := flag.String("api-token", envOr("GANTRY_API_TOKEN", ""), "Shared API token (empty disables auth)")
+	trustProxy := flag.Bool("trust-proxy-headers", envBool("GANTRY_TRUST_PROXY_HEADERS", false), "Trust Remote-User / X-Remote-User from reverse proxy")
 	showVersion := flag.Bool("version", false, "Print version and exit")
 	flag.Parse()
 
@@ -43,9 +46,14 @@ func main() {
 		log.Fatalf("embed frontend: %v", err)
 	}
 
+	auth := api.AuthConfig{
+		Token:             *apiToken,
+		TrustProxyHeaders: *trustProxy,
+	}
 	router, _ := api.NewRouter(api.Options{
 		DB:       database,
 		StaticFS: staticRoot,
+		Auth:     auth,
 	})
 
 	srv := &http.Server{
@@ -55,7 +63,15 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("Gantry %s listening on %s (db=%s)", version.Version, *addr, *dbPath)
+		authMode := "open"
+		if auth.Token != "" && auth.TrustProxyHeaders {
+			authMode = "token+proxy"
+		} else if auth.Token != "" {
+			authMode = "token"
+		} else if auth.TrustProxyHeaders {
+			authMode = "proxy-headers"
+		}
+		log.Printf("Gantry %s listening on %s (db=%s, auth=%s)", version.Version, *addr, *dbPath, authMode)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server: %v", err)
 		}
@@ -78,4 +94,19 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func envBool(key string, fallback bool) bool {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return fallback
+	}
+	switch strings.ToLower(v) {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
 }
