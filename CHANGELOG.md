@@ -12,12 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Job history retention (`GANTRY_JOB_RETENTION_DAYS` / `-job-retention-days`)
 - Readiness probe `GET /readyz` (DB ping)
 
-### Fixed
-- Docker/SQLite: create parent dirs for DB path and ship writable `/data` in the image (fixes "unable to open database file: out of memory (14)")
-
 ### Changed
 - Multi-arch Docker builds cross-compile Go on the host platform instead of QEMU-emulating arm64 (much faster image builds)
 
+## [0.2.1] - 2026-07-16
+
+### Fixed
+- Docker/SQLite: create parent dirs for DB path and ship writable `/data` in the image (fixes "unable to open database file: out of memory (14)")
+
+## [0.2.0] - 2026-07-16
 ## [0.2.0] - 2026-07-16
 
 ### Added
