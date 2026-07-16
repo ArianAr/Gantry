@@ -20,8 +20,8 @@ coverage.html
 
 # Frontend
 frontend/node_modules/
-frontend/dist/
 frontend/.vite/
+# frontend/dist is committed (or CI-built) for go:embed; local rebuilds overwrite it
 
 # IDE / OS
 .idea/
