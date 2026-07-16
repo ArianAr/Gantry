@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Multi-arch Docker builds cross-compile Go on the host platform instead of QEMU-emulating arm64 (much faster image builds)
+
 ## [0.1.0] - 2026-07-16
 
 ### Added
