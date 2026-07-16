@@ -67,3 +67,22 @@ func TestMapTargetKey(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestObjectsMatch(t *testing.T) {
+	src := ObjectInfo{Key: "a", Size: 10, ETag: "abc"}
+	dst := ObjectInfo{Key: "a", Size: 10, ETag: "abc"}
+	if !objectsMatch(src, dst, "etag") {
+		t.Fatal("etag match")
+	}
+	dst.ETag = "xyz"
+	if objectsMatch(src, dst, "etag") {
+		t.Fatal("etag mismatch should fail")
+	}
+	if !objectsMatch(src, dst, "size") {
+		t.Fatal("size mode ignores etag")
+	}
+	dst.Size = 11
+	if objectsMatch(src, dst, "size") {
+		t.Fatal("size mismatch")
+	}
+}

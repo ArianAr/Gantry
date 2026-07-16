@@ -175,6 +175,7 @@ type ruleRequest struct {
 	DeleteOnTarget     bool    `json:"delete_on_target"`
 	ConcurrencyLimit   int     `json:"concurrency_limit"`
 	BandwidthLimitKbps int     `json:"bandwidth_limit_kbps"`
+	CompareMode        string  `json:"compare_mode"`
 	ScheduleCron       string  `json:"schedule_cron"`
 	ScheduleEnabled    bool    `json:"schedule_enabled"`
 }
@@ -210,6 +211,7 @@ func (s *Server) createOrUpdateRule(c *gin.Context) {
 		DeleteOnTarget:     req.DeleteOnTarget,
 		ConcurrencyLimit:   req.ConcurrencyLimit,
 		BandwidthLimitKbps: req.BandwidthLimitKbps,
+		CompareMode:        req.CompareMode,
 		ScheduleCron:       req.ScheduleCron,
 		ScheduleEnabled:    req.ScheduleEnabled,
 	}
