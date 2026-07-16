@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Readiness probe `GET /readyz` (DB ping)
 - Rule `compare_mode`: `etag` (default) or `size` for skip/modify decisions
 - Multi-target fan-out: rule `extra_targets` (`bucket` or `bucket:prefix`, semicolon-separated) on the same target provider
+- Job queue with rule `priority` and `GANTRY_MAX_CONCURRENT_JOBS` / `-max-concurrent-jobs` (default 2)
 - Providers UI: known-provider dropdown (AWS, R2, ArvanCloud, MinIO, Alibaba, Parspack, Hetzner, Dunkel, …) with prefilled editable fields + manual entry
 
 ### Changed

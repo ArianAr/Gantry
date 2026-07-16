@@ -106,6 +106,7 @@ Environment (optional):
 | `GANTRY_TRUST_PROXY_HEADERS` | `true`/`false` — reverse-proxy identity headers |
 | `GANTRY_LOG_JSON` | `true`/`false` — JSON process logs |
 | `GANTRY_JOB_RETENTION_DAYS` | Purge completed/failed/cancelled jobs older than N days |
+| `GANTRY_MAX_CONCURRENT_JOBS` | Max simultaneous sync jobs; others wait by rule priority (default 2) |
 
 ### Authentication
 

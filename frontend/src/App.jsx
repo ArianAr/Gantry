@@ -308,6 +308,7 @@ const emptyRule = {
   schedule_cron: '',
   schedule_enabled: false,
   compare_mode: 'etag',
+  priority: 0,
 }
 
 export default function App() {
@@ -486,6 +487,7 @@ export default function App() {
         ...ruleForm,
         concurrency_limit: Number(ruleForm.concurrency_limit) || 4,
         bandwidth_limit_kbps: Number(ruleForm.bandwidth_limit_kbps) || 0,
+        priority: Number(ruleForm.priority) || 0,
         min_size_bytes: ruleForm.min_size_bytes === '' ? null : Number(ruleForm.min_size_bytes),
         max_size_bytes: ruleForm.max_size_bytes === '' ? null : Number(ruleForm.max_size_bytes),
         modified_after: ruleForm.modified_after || null,
@@ -721,6 +723,47 @@ export default function App() {
               </div>
             </div>
 
+            <div className="rounded-xl border border-slate-800 bg-surface-800/60 p-5">
+              <h2 className="text-sm font-semibold mb-3">Job queue</h2>
+              <p className="text-[11px] text-slate-500 mb-3">
+                Higher rule priority runs first when concurrent slots free up. Cancel removes queued jobs or stops active ones.
+              </p>
+              <div className="space-y-2 max-h-48 overflow-y-auto mb-2">
+                {(jobs || [])
+                  .filter((j) => ['queued', 'active', 'dry_running'].includes(j.status))
+                  .sort((a, b) => {
+                    const rank = (s) => (s === 'active' || s === 'dry_running' ? 0 : 1)
+                    if (rank(a.status) !== rank(b.status)) return rank(a.status) - rank(b.status)
+                    return (b.priority || 0) - (a.priority || 0)
+                  })
+                  .map((j) => (
+                    <div key={j.id} className="flex items-center justify-between gap-2 text-sm rounded-lg border border-slate-800 px-3 py-2 bg-surface-900/40">
+                      <div className="min-w-0">
+                        <div className="font-mono text-xs text-slate-400">
+                          {j.id.slice(0, 8)} · prio {j.priority ?? 0}
+                        </div>
+                        <div className="text-xs text-slate-500 truncate">rule {j.sync_rule_id?.slice(0, 8)}</div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => cancelJob(j.id)}
+                          className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-red-500/40 text-red-300 hover:bg-red-950/40"
+                          title="Cancel job"
+                        >
+                          <Square className="h-3 w-3" /> Cancel
+                        </button>
+                        <StatusPill status={j.status} />
+                      </div>
+                    </div>
+                  ))}
+                {(jobs || []).filter((j) => ['queued', 'active', 'dry_running'].includes(j.status)).length === 0 && (
+                  <p className="text-sm text-slate-500">Queue empty.</p>
+                )}
+              </div>
+            </div>
+
             <div className="grid lg:grid-cols-2 gap-4">
               <div className="rounded-xl border border-slate-800 bg-surface-800/60 p-5">
                 <h2 className="text-sm font-semibold mb-3">Console log</h2>
@@ -742,7 +785,7 @@ export default function App() {
                   {(jobs || []).slice(0, 12).map((j) => (
                     <div key={j.id} className="flex items-center justify-between gap-2 text-sm rounded-lg border border-slate-800 px-3 py-2 bg-surface-900/40">
                       <div className="min-w-0">
-                        <div className="font-mono text-xs text-slate-400">{j.id.slice(0, 8)}</div>
+                        <div className="font-mono text-xs text-slate-400">{j.id.slice(0, 8)} · p{j.priority ?? 0}</div>
                         <div className="text-xs text-slate-500">
                           {formatBytes(j.bytes_transferred)} · {j.files_transferred} files
                         </div>
@@ -990,7 +1033,7 @@ export default function App() {
                   <input className="field" type="datetime-local" value={ruleForm.modified_after} onChange={(e) => setRuleForm({ ...ruleForm, modified_after: e.target.value ? new Date(e.target.value).toISOString() : '' })} />
                 </label>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <label className="block text-xs text-slate-400">
                   Concurrency (1–32)
                   <input className="field" type="number" min={1} max={32} value={ruleForm.concurrency_limit} onChange={(e) => setRuleForm({ ...ruleForm, concurrency_limit: e.target.value })} />
@@ -998,6 +1041,10 @@ export default function App() {
                 <label className="block text-xs text-slate-400">
                   Bandwidth limit (kbps, 0=∞)
                   <input className="field" type="number" min={0} value={ruleForm.bandwidth_limit_kbps} onChange={(e) => setRuleForm({ ...ruleForm, bandwidth_limit_kbps: e.target.value })} />
+                </label>
+                <label className="block text-xs text-slate-400">
+                  Queue priority
+                  <input className="field" type="number" value={ruleForm.priority} onChange={(e) => setRuleForm({ ...ruleForm, priority: e.target.value })} title="Higher starts first when slots free" />
                 </label>
               </div>
               <label className="block text-xs text-slate-400">
