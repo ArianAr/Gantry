@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Server,
   Settings2,
+  Square,
   Trash2,
   Zap,
   CheckCircle2,
@@ -326,6 +327,20 @@ export default function App() {
     }
   }
 
+  async function cancelJob(jobId) {
+    setBusy(true)
+    setError('')
+    try {
+      await api(`/api/jobs/${jobId}/cancel`, { method: 'POST', body: '{}' })
+      setLogs((prev) => [...prev, { t: new Date().toISOString(), m: `cancel requested for ${jobId.slice(0, 8)}`, job: jobId }])
+      await refresh()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   function submitToken(e) {
     e.preventDefault()
     setStoredToken(tokenInput.trim())
@@ -521,14 +536,27 @@ export default function App() {
                 <h2 className="text-sm font-semibold mb-3">Recent jobs</h2>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {(jobs || []).slice(0, 12).map((j) => (
-                    <div key={j.id} className="flex items-center justify-between text-sm rounded-lg border border-slate-800 px-3 py-2 bg-surface-900/40">
-                      <div>
+                    <div key={j.id} className="flex items-center justify-between gap-2 text-sm rounded-lg border border-slate-800 px-3 py-2 bg-surface-900/40">
+                      <div className="min-w-0">
                         <div className="font-mono text-xs text-slate-400">{j.id.slice(0, 8)}</div>
                         <div className="text-xs text-slate-500">
                           {formatBytes(j.bytes_transferred)} · {j.files_transferred} files
                         </div>
                       </div>
-                      <StatusPill status={j.status} />
+                      <div className="flex items-center gap-2 shrink-0">
+                        {['queued', 'active', 'dry_running'].includes(j.status) && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => cancelJob(j.id)}
+                            className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-red-500/40 text-red-300 hover:bg-red-950/40"
+                            title="Cancel job"
+                          >
+                            <Square className="h-3 w-3" /> Cancel
+                          </button>
+                        )}
+                        <StatusPill status={j.status} />
+                      </div>
                     </div>
                   ))}
                   {jobs?.length === 0 && <p className="text-sm text-slate-500">No jobs yet.</p>}

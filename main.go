@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
@@ -28,12 +30,18 @@ func main() {
 	dbPath := flag.String("db", envOr("GANTRY_DB", "gantry.db"), "SQLite database path")
 	apiToken := flag.String("api-token", envOr("GANTRY_API_TOKEN", ""), "Shared API token (empty disables auth)")
 	trustProxy := flag.Bool("trust-proxy-headers", envBool("GANTRY_TRUST_PROXY_HEADERS", false), "Trust Remote-User / X-Remote-User from reverse proxy")
+	logJSON := flag.Bool("log-json", envBool("GANTRY_LOG_JSON", false), "Emit logs as JSON lines to stdout")
 	showVersion := flag.Bool("version", false, "Print version and exit")
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Printf("gantry %s (commit %s, built %s)\n", version.Version, version.Commit, version.BuildDate)
 		os.Exit(0)
+	}
+
+	if *logJSON {
+		log.SetFlags(0)
+		log.SetOutput(jsonLogWriter{w: os.Stdout})
 	}
 
 	database, err := db.Open(*dbPath)
@@ -119,4 +127,25 @@ func envBool(key string, fallback bool) bool {
 	default:
 		return fallback
 	}
+}
+
+// jsonLogWriter wraps log output as {"ts","level","msg"} JSON lines.
+type jsonLogWriter struct{ w io.Writer }
+
+func (j jsonLogWriter) Write(p []byte) (int, error) {
+	msg := strings.TrimSpace(string(p))
+	line, _ := json.Marshal(map[string]string{
+		"ts":    time.Now().UTC().Format(time.RFC3339Nano),
+		"level": "info",
+		"msg":   msg,
+	})
+	n, err := j.w.Write(append(line, '\n'))
+	if err != nil {
+		return 0, err
+	}
+	// Report original length so log package is satisfied.
+	if n > 0 {
+		return len(p), nil
+	}
+	return 0, err
 }

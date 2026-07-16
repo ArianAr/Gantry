@@ -88,6 +88,7 @@ Dark single-page console with three tabs:
 | `-db` | `gantry.db` | SQLite database path |
 | `-api-token` | empty | Shared API token; empty disables auth |
 | `-trust-proxy-headers` | `false` | Trust `Remote-User` / `X-Remote-User` / `X-Forwarded-User` |
+| `-log-json` | `false` | Emit process logs as JSON lines (stdout) |
 | `-version` | — | Print version and exit |
 
 Environment (optional):
@@ -98,6 +99,7 @@ Environment (optional):
 | `GANTRY_DB` | Overrides database path if flag is default |
 | `GANTRY_API_TOKEN` | Shared API token (same as `-api-token`) |
 | `GANTRY_TRUST_PROXY_HEADERS` | `true`/`false` — reverse-proxy identity headers |
+| `GANTRY_LOG_JSON` | `true`/`false` — JSON process logs |
 
 ### Authentication
 
