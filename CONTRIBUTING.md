@@ -43,15 +43,21 @@ docker run --rm -p 8080:8080 -v gantry-data:/data gantry:local
 1. Open an issue for non-trivial work when practical.
 2. Create a branch from latest `main` (`feat/...`, `fix/...`, `docs/...`, `chore/...`).
 3. **One feature or fix per PR.**
-4. Ensure CI is green (`go test`, frontend build, docker build as configured).
-5. Fill out the PR template.
-6. Address review feedback.
-7. Maintainers merge only when CI passes.
+4. **Test everything locally before committing and before pushing:**
+   - `go test ./...` and `go vet ./...`
+   - Frontend: `cd frontend && npm ci && npm run build` when UI changes
+   - Binary smoke: `go build -o gantry . && ./gantry -version` (plus `/healthz` when relevant)
+   - Docker image build when packaging changes
+5. Fill out the PR template (checklist is not optional).
+6. **Every PR gets a formal code review** (GitHub review submitted — approve or request changes). Self-merge without a written review is not allowed for feature work.
+7. Address review feedback and re-run the local test suite after fixes.
+8. Maintainers merge only when **CI is green** and review findings are resolved.
 
 ## Review expectations
 
-- Reviewers check correctness, streaming safety, secret handling, and test coverage.
+- Reviewers check correctness, streaming safety (`io.Pipe` / no full-file buffers), secret handling, API contracts, and tests.
 - Bugs and security issues block merge; nits should still be fixed when easy.
+- Dependabot PRs still need a brief review + green CI before merge.
 
 ## Versioning & releases
 

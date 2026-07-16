@@ -72,12 +72,20 @@ docker run --rm -p 8080:8080 -v gantry-data:/data gantry:local
 
 **When to release:** security/data-loss fixes (critical), major features, breaking API/schema. Skip for docs/chore-only.
 
-## PR workflow
+## PR workflow (mandatory)
 
-- One feature/fix per PR.
-- Review thoroughly; fix all bugs before merge.
-- Merge only when CI is green.
-- Prefer sequential merges to `main`.
+1. **Test before every commit** (local, not only CI):
+   - `go test ./...`
+   - `go vet ./...`
+   - `cd frontend && npm ci && npm run build` (if frontend touched)
+   - `go build -o gantry .` and smoke (`-version`, `/healthz`, basic API) when backend/UI packaging changes
+   - `docker build` when Dockerfile/CI packaging changes
+2. **One feature/fix per PR.**
+3. **Formal PR review required** before merge:
+   - Post a GitHub review via `gh pr review` (or UI) covering correctness, streaming safety, secrets, tests, and docs
+   - Address all review findings; re-test after fixes
+4. **Merge only when CI is green** and the review is submitted (approve or request-changes resolved).
+5. Prefer sequential merges to `main` (branch protection enforced).
 
 ## API surface (quick ref)
 
