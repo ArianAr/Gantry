@@ -63,7 +63,12 @@ type SyncRule struct {
 	DeleteOnTarget     bool       `gorm:"default:false" json:"delete_on_target"`
 	ConcurrencyLimit   int        `gorm:"default:4" json:"concurrency_limit"`
 	BandwidthLimitKbps int        `gorm:"default:0" json:"bandwidth_limit_kbps"`
-	CreatedAt          time.Time  `json:"created_at"`
+	// ScheduleCron is a standard 5-field cron expression (min hour dom mon dow). Empty = no schedule.
+	ScheduleCron    string     `json:"schedule_cron"`
+	ScheduleEnabled bool       `gorm:"default:false" json:"schedule_enabled"`
+	LastScheduledAt *time.Time `json:"last_scheduled_at,omitempty"`
+	NextRunAt       *time.Time `json:"next_run_at,omitempty"`
+	CreatedAt       time.Time  `json:"created_at"`
 }
 
 // TableName returns the sync_rules table name.

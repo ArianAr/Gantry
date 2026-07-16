@@ -75,10 +75,10 @@ Goal: make network-exposed and always-on deployments safer and more operationall
 - [ ] Audit that secrets never appear in logs, SSE, or dry-run payloads
 
 ### M5.3 Scheduled sync
-- [ ] Cron expression (or simple interval) per `SyncRule`
-- [ ] Enable/disable schedule without deleting the rule
-- [ ] In-process scheduler; skip overlapping runs for the same rule
-- [ ] Surface next run time + last scheduled job in API/UI
+- [x] Cron expression (or simple interval) per `SyncRule`
+- [x] Enable/disable schedule without deleting the rule
+- [x] In-process scheduler; skip overlapping runs for the same rule
+- [x] Surface next run time + last scheduled job in API/UI
 
 ### M5.4 Ops polish
 - [ ] Graceful job cancel from UI (API already has cancel path — wire end-to-end)
