@@ -179,6 +179,7 @@ type ruleRequest struct {
 	CompareMode        string  `json:"compare_mode"`
 	ScheduleCron       string  `json:"schedule_cron"`
 	ScheduleEnabled    bool    `json:"schedule_enabled"`
+	Priority           int     `json:"priority"`
 }
 
 func (s *Server) listRules(c *gin.Context) {
@@ -216,6 +217,7 @@ func (s *Server) createOrUpdateRule(c *gin.Context) {
 		CompareMode:        req.CompareMode,
 		ScheduleCron:       req.ScheduleCron,
 		ScheduleEnabled:    req.ScheduleEnabled,
+		Priority:           req.Priority,
 	}
 	if req.ModifiedAfter != nil && *req.ModifiedAfter != "" {
 		t, err := time.Parse(time.RFC3339, *req.ModifiedAfter)

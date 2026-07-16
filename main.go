@@ -34,6 +34,7 @@ func main() {
 	trustProxy := flag.Bool("trust-proxy-headers", envBool("GANTRY_TRUST_PROXY_HEADERS", false), "Trust Remote-User / X-Remote-User from reverse proxy")
 	logJSON := flag.Bool("log-json", envBool("GANTRY_LOG_JSON", false), "Emit logs as JSON lines to stdout")
 	retentionDays := flag.Int("job-retention-days", envInt("GANTRY_JOB_RETENTION_DAYS", 0), "Purge terminal jobs older than N days (0=disabled)")
+	maxJobs := flag.Int("max-concurrent-jobs", envInt("GANTRY_MAX_CONCURRENT_JOBS", 2), "Max simultaneous sync jobs (others queue by priority)")
 	showVersion := flag.Bool("version", false, "Print version and exit")
 	flag.Parse()
 
@@ -65,10 +66,11 @@ func main() {
 
 	sched := schedule.New(database, nil) // engine set after router construction
 	router, apiSrv := api.NewRouter(api.Options{
-		DB:        database,
-		StaticFS:  staticRoot,
-		Auth:      auth,
-		Scheduler: sched,
+		DB:                database,
+		StaticFS:          staticRoot,
+		Auth:              auth,
+		Scheduler:         sched,
+		MaxConcurrentJobs: *maxJobs,
 	})
 	sched.Engine = apiSrv.Engine
 	rootCtx, rootCancel := context.WithCancel(context.Background())
@@ -102,7 +104,7 @@ func main() {
 		if *secretsKey != "" {
 			secMode = "encrypted"
 		}
-		log.Printf("Gantry %s listening on %s (db=%s, auth=%s, secrets=%s, scheduler=on)", version.Version, *addr, *dbPath, authMode, secMode)
+		log.Printf("Gantry %s listening on %s (db=%s, auth=%s, secrets=%s, scheduler=on, max_jobs=%d)", version.Version, *addr, *dbPath, authMode, secMode, *maxJobs)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server: %v", err)
 		}
