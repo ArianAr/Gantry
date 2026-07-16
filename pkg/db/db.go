@@ -2,6 +2,8 @@ package db
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -136,6 +138,13 @@ func Open(path string, secretsKey ...string) (*DB, error) {
 	if path == "" {
 		path = "gantry.db"
 	}
+	// Ensure parent directory exists (Docker default is /data/gantry.db; missing
+	// /data yields SQLITE_CANTOPEN, often misreported as "out of memory (14)").
+	if dir := filepath.Dir(path); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return nil, fmt.Errorf("create database directory %q: %w", dir, err)
+		}
+	}
 	key := ""
 	if len(secretsKey) > 0 {
 		key = secretsKey[0]
@@ -146,7 +155,7 @@ func Open(path string, secretsKey ...string) (*DB, error) {
 		Logger: logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("open sqlite: %w", err)
+		return nil, fmt.Errorf("open sqlite %q: %w (ensure the directory exists and is writable by the process user)", path, err)
 	}
 	d := &DB{gorm: g, secretsKey: key}
 	if err := d.migrate(); err != nil {

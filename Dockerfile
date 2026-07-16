@@ -35,10 +35,15 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -X github.com/ArianAr/Gantry/internal/version.BuildDate=${BUILD_DATE}" \
   -o /out/gantry .
 
+# Data directory owned by distroless nonroot (uid/gid 65532)
+FROM alpine:3.21 AS data
+RUN mkdir -p /data && chown -R 65532:65532 /data
+
 # --- Phase 3: minimal runtime (per-target arch) ---
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /
 COPY --from=builder /out/gantry /gantry
+COPY --from=data --chown=65532:65532 /data /data
 USER nonroot:nonroot
 EXPOSE 8080
 ENV GANTRY_ADDR=:8080
