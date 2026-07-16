@@ -19,6 +19,7 @@ import (
 	"github.com/ArianAr/Gantry/internal/version"
 	"github.com/ArianAr/Gantry/pkg/api"
 	"github.com/ArianAr/Gantry/pkg/db"
+	"github.com/ArianAr/Gantry/pkg/retention"
 	"github.com/ArianAr/Gantry/pkg/schedule"
 )
 
@@ -32,6 +33,7 @@ func main() {
 	secretsKey := flag.String("secrets-key", envOr("GANTRY_SECRETS_KEY", ""), "Encrypt provider secrets at rest (empty = plaintext in DB)")
 	trustProxy := flag.Bool("trust-proxy-headers", envBool("GANTRY_TRUST_PROXY_HEADERS", false), "Trust Remote-User / X-Remote-User from reverse proxy")
 	logJSON := flag.Bool("log-json", envBool("GANTRY_LOG_JSON", false), "Emit logs as JSON lines to stdout")
+	retentionDays := flag.Int("job-retention-days", envInt("GANTRY_JOB_RETENTION_DAYS", 0), "Purge terminal jobs older than N days (0=disabled)")
 	showVersion := flag.Bool("version", false, "Print version and exit")
 	flag.Parse()
 
@@ -72,6 +74,14 @@ func main() {
 	rootCtx, rootCancel := context.WithCancel(context.Background())
 	defer rootCancel()
 	sched.Start(rootCtx)
+	if *retentionDays > 0 {
+		ret := &retention.Runner{
+			DB:        database,
+			Retention: time.Duration(*retentionDays) * 24 * time.Hour,
+		}
+		ret.Start(rootCtx)
+		log.Printf("job retention enabled: %d day(s)", *retentionDays)
+	}
 
 	srv := &http.Server{
 		Addr:              *addr,
@@ -132,6 +142,18 @@ func envBool(key string, fallback bool) bool {
 	default:
 		return fallback
 	}
+}
+
+func envInt(key string, fallback int) int {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return fallback
+	}
+	var n int
+	if _, err := fmt.Sscanf(v, "%d", &n); err != nil {
+		return fallback
+	}
+	return n
 }
 
 // jsonLogWriter wraps log output as {"ts","level","msg"} JSON lines.

@@ -30,8 +30,8 @@ func (a AuthConfig) Middleware() gin.HandlerFunc {
 	token := strings.TrimSpace(a.Token)
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
-		// Health and metrics stay open for probes / Prometheus scrapers.
-		if path == "/healthz" || path == "/metrics" {
+		// Health/readiness and metrics stay open for probes / Prometheus scrapers.
+		if path == "/healthz" || path == "/readyz" || path == "/metrics" {
 			c.Next()
 			return
 		}
