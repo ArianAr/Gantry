@@ -45,3 +45,9 @@ Thumbs.db
 /build/
 *.tar.gz
 *.zip
+
+# Local agent tooling (never commit — see AGENTS.md for shared guidance)
+.grok/
+.claude/
+.cursor/
+.codex/
