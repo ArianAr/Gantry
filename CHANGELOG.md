@@ -7,14 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Multi-arch Docker builds cross-compile Go on the host platform instead of QEMU-emulating arm64 (much faster image builds)
+
+## [0.2.0] - 2026-07-16
+
 ### Added
 - Optional operator auth: `GANTRY_API_TOKEN` / `-api-token`, reverse-proxy identity headers, dashboard token prompt, SSE `access_token` query support
 - Per-rule cron schedules (`schedule_cron` / `schedule_enabled`) with in-process scheduler, overlap skip, next/last run fields
 - Dashboard job cancel control; optional JSON process logs (`GANTRY_LOG_JSON` / `-log-json`)
 - Optional at-rest encryption for provider secrets (`GANTRY_SECRETS_KEY` / `-secrets-key`, AES-256-GCM + PBKDF2 + migrate on open)
-
-### Changed
-- Multi-arch Docker builds cross-compile Go on the host platform instead of QEMU-emulating arm64 (much faster image builds)
 
 ## [0.1.0] - 2026-07-16
 

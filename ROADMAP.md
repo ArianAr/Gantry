@@ -16,7 +16,7 @@ This document is the product plan for Gantry. Status reflects `main` as of the l
 | **M2** | API surface | **Done** |
 | **M3** | Dashboard & image | **Done** |
 | **M4** | Release & registry | **Done** (v0.1.0) |
-| **M5** | Hardening & operations | **In progress** |
+| **M5** | Hardening & operations | **Done** (v0.2.0) |
 | **M6** | Observability & reliability | Planned |
 | **M7** | Advanced sync | Planned |
 
@@ -58,7 +58,7 @@ This document is the product plan for Gantry. Status reflects `main` as of the l
 
 ---
 
-## M5 — Hardening & operations 🚧
+## M5 — Hardening & operations ✅
 
 Goal: make network-exposed and always-on deployments safer and more operationally useful without multi-tenant complexity.
 
