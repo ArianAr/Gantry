@@ -102,11 +102,190 @@ function formatEta(sec) {
 
 const emptyProvider = {
   name: '',
-  provider_type: 'minio',
+  provider_type: 's3',
   endpoint: '',
   region: 'us-east-1',
   access_key_id: '',
   secret_access_key: '',
+}
+
+// Known S3-compatible providers with sensible defaults (all fields remain editable).
+const KNOWN_PROVIDERS = [
+  {
+    id: 'manual',
+    label: 'Custom / manual…',
+    provider_type: 's3',
+    endpoint: '',
+    region: 'us-east-1',
+    name: '',
+    hint: 'Enter any S3-compatible endpoint, region, and credentials.',
+  },
+  {
+    id: 'aws',
+    label: 'Amazon Web Services (S3)',
+    provider_type: 'aws',
+    endpoint: '',
+    region: 'us-east-1',
+    name: 'AWS S3',
+    hint: 'Leave endpoint empty. Set region to match your buckets (e.g. eu-west-1).',
+  },
+  {
+    id: 'r2',
+    label: 'Cloudflare R2',
+    provider_type: 'r2',
+    endpoint: 'https://<ACCOUNT_ID>.r2.cloudflarestorage.com',
+    region: 'auto',
+    name: 'Cloudflare R2',
+    hint: 'Replace <ACCOUNT_ID> with your Cloudflare account ID from the R2 dashboard.',
+  },
+  {
+    id: 'arvancloud',
+    label: 'ArvanCloud Object Storage',
+    provider_type: 'arvancloud',
+    endpoint: 'https://s3.ir-thr-at1.arvanstorage.ir',
+    region: 'ir-thr-at1',
+    name: 'ArvanCloud',
+    hint: 'Default Tehran (Simin). Other regions include ir-tbz-sh1 (Tabriz).',
+  },
+  {
+    id: 'minio',
+    label: 'MinIO',
+    provider_type: 'minio',
+    endpoint: 'http://127.0.0.1:9000',
+    region: 'us-east-1',
+    name: 'MinIO',
+    hint: 'Point endpoint at your MinIO host. Path-style addressing is used automatically.',
+  },
+  {
+    id: 'alibaba',
+    label: 'Alibaba Cloud OSS',
+    provider_type: 'alibaba',
+    endpoint: 'https://oss-cn-hangzhou.aliyuncs.com',
+    region: 'oss-cn-hangzhou',
+    name: 'Alibaba OSS',
+    hint: 'Pick the OSS regional endpoint for your bucket (Hangzhou default).',
+  },
+  {
+    id: 'parspack',
+    label: 'Parspack',
+    provider_type: 'parspack',
+    endpoint: '',
+    region: 'default',
+    name: 'Parspack',
+    hint: 'Copy Access Key, Secret, and S3 endpoint from the Parspack cloud storage panel.',
+  },
+  {
+    id: 'hetzner',
+    label: 'Hetzner Object Storage',
+    provider_type: 'hetzner',
+    endpoint: 'https://fsn1.your-objectstorage.com',
+    region: 'fsn1',
+    name: 'Hetzner',
+    hint: 'Match location: fsn1 (Falkenstein), nbg1 (Nuremberg), or hel1 (Helsinki).',
+  },
+  {
+    id: 'dunkel',
+    label: 'Dunkel Cloud Storage',
+    provider_type: 'dunkel',
+    endpoint: 'https://s3.dunkel.de',
+    region: 'de',
+    name: 'Dunkel',
+    hint: 'German S3-compatible storage. Confirm endpoint in the Dunkel console if different.',
+  },
+  {
+    id: 'b2',
+    label: 'Backblaze B2',
+    provider_type: 'b2',
+    endpoint: 'https://s3.us-west-004.backblazeb2.com',
+    region: 'us-west-004',
+    name: 'Backblaze B2',
+    hint: 'Use the S3-compatible endpoint shown for your B2 region in the console.',
+  },
+  {
+    id: 'wasabi',
+    label: 'Wasabi',
+    provider_type: 'wasabi',
+    endpoint: 'https://s3.wasabisys.com',
+    region: 'us-east-1',
+    name: 'Wasabi',
+    hint: 'Regional endpoints e.g. https://s3.eu-central-1.wasabisys.com with matching region.',
+  },
+  {
+    id: 'digitalocean',
+    label: 'DigitalOcean Spaces',
+    provider_type: 'digitalocean',
+    endpoint: 'https://nyc3.digitaloceanspaces.com',
+    region: 'nyc3',
+    name: 'DigitalOcean Spaces',
+    hint: 'Change the region subdomain (nyc3, ams3, sgp1, sfo3, …).',
+  },
+  {
+    id: 'linode',
+    label: 'Akamai / Linode Object Storage',
+    provider_type: 'linode',
+    endpoint: 'https://us-east-1.linodeobjects.com',
+    region: 'us-east-1',
+    name: 'Linode Objects',
+    hint: 'Use the cluster endpoint from Cloud Manager (us-east-1, eu-central-1, …).',
+  },
+  {
+    id: 'scaleway',
+    label: 'Scaleway Object Storage',
+    provider_type: 'scaleway',
+    endpoint: 'https://s3.nl-ams.scw.cloud',
+    region: 'nl-ams',
+    name: 'Scaleway',
+    hint: 'Regions: nl-ams, fr-par, pl-waw, it-mil.',
+  },
+  {
+    id: 'ovh',
+    label: 'OVHcloud Object Storage',
+    provider_type: 'ovh',
+    endpoint: 'https://s3.gra.io.cloud.ovh.net',
+    region: 'gra',
+    name: 'OVHcloud',
+    hint: 'Region codes include gra, rbx, sbg, de, waw, bhs, …',
+  },
+  {
+    id: 'gcs',
+    label: 'Google Cloud Storage (HMAC / S3 API)',
+    provider_type: 'gcs',
+    endpoint: 'https://storage.googleapis.com',
+    region: 'auto',
+    name: 'GCS',
+    hint: 'Create HMAC keys for a service account in Cloud Storage settings.',
+  },
+  {
+    id: 'liara',
+    label: 'Liara Object Storage',
+    provider_type: 'liara',
+    endpoint: 'https://storage.iran.liara.space',
+    region: 'us-east-1',
+    name: 'Liara',
+    hint: 'Confirm the exact endpoint in the Liara object storage panel.',
+  },
+  {
+    id: 'ionos',
+    label: 'IONOS Object Storage',
+    provider_type: 'ionos',
+    endpoint: 'https://s3.eu-central-1.ionoscloud.com',
+    region: 'eu-central-1',
+    name: 'IONOS',
+    hint: 'Use the IONOS regional S3 endpoint for your contract location.',
+  },
+  {
+    id: 'idrive',
+    label: 'IDrive e2',
+    provider_type: 'idrive',
+    endpoint: 'https://l1n3.va.idrivee2-12.com',
+    region: 'us-east-1',
+    name: 'IDrive e2',
+    hint: 'Copy the endpoint hostname from the IDrive e2 storage region page.',
+  },
+]
+
+function findKnownProvider(id) {
+  return KNOWN_PROVIDERS.find((p) => p.id === id) || KNOWN_PROVIDERS[0]
 }
 
 const emptyRule = {
@@ -148,6 +327,7 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false)
 
   const [providerForm, setProviderForm] = useState(emptyProvider)
+  const [providerPreset, setProviderPreset] = useState('manual')
   const [testResult, setTestResult] = useState(null)
   const [ruleForm, setRuleForm] = useState(emptyRule)
   const [dryRun, setDryRun] = useState(null)
@@ -236,6 +416,27 @@ export default function App() {
   const remaining = (progress?.total_bytes || 0) - (progress?.bytes_transferred || 0)
   const eta = etaSeconds(remaining > 0 ? remaining : 0, progress?.bytes_per_sec)
 
+  function applyProviderPreset(presetId) {
+    setProviderPreset(presetId)
+    const preset = findKnownProvider(presetId)
+    if (presetId === 'manual') {
+      setProviderForm((f) => ({
+        ...emptyProvider,
+        access_key_id: f.access_key_id,
+        secret_access_key: f.secret_access_key,
+      }))
+      return
+    }
+    setProviderForm((f) => ({
+      ...f,
+      name: preset.name || f.name,
+      provider_type: preset.provider_type,
+      endpoint: preset.endpoint,
+      region: preset.region,
+    }))
+    setTestResult(null)
+  }
+
   async function saveProvider(e) {
     e.preventDefault()
     setBusy(true)
@@ -243,6 +444,7 @@ export default function App() {
     try {
       await api('/api/providers', { method: 'POST', body: JSON.stringify(providerForm) })
       setProviderForm(emptyProvider)
+      setProviderPreset('manual')
       setTestResult(null)
       await refresh()
     } catch (err) {
@@ -617,25 +819,84 @@ export default function App() {
               <h2 className="text-sm font-semibold flex items-center gap-2">
                 <Plus className="h-4 w-4" /> Add provider
               </h2>
-              {[
-                ['name', 'Name'],
-                ['provider_type', 'Type (aws, r2, minio, b2, wasabi)'],
-                ['endpoint', 'Endpoint (empty for AWS)'],
-                ['region', 'Region'],
-                ['access_key_id', 'Access key'],
-                ['secret_access_key', 'Secret key'],
-              ].map(([key, label]) => (
-                <label key={key} className="block text-xs text-slate-400">
-                  {label}
-                  <input
-                    className="mt-1 w-full rounded-md bg-surface-900 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    type={key.includes('secret') ? 'password' : 'text'}
-                    value={providerForm[key]}
-                    onChange={(e) => setProviderForm({ ...providerForm, [key]: e.target.value })}
-                    required={key !== 'endpoint'}
-                  />
-                </label>
-              ))}
+              <label className="block text-xs text-slate-400">
+                Known provider
+                <select
+                  className="mt-1 w-full rounded-md bg-surface-900 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  value={providerPreset}
+                  onChange={(e) => applyProviderPreset(e.target.value)}
+                >
+                  {KNOWN_PROVIDERS.map((p) => (
+                    <option key={p.id} value={p.id}>{p.label}</option>
+                  ))}
+                </select>
+              </label>
+              <p className="text-[11px] text-slate-500 leading-relaxed -mt-1">
+                {findKnownProvider(providerPreset).hint}
+              </p>
+              <label className="block text-xs text-slate-400">
+                Display name
+                <input
+                  className="mt-1 w-full rounded-md bg-surface-900 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  value={providerForm.name}
+                  onChange={(e) => setProviderForm({ ...providerForm, name: e.target.value })}
+                  required
+                  placeholder="My production R2"
+                />
+              </label>
+              <label className="block text-xs text-slate-400">
+                Type key
+                <input
+                  className="mt-1 w-full rounded-md bg-surface-900 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                  value={providerForm.provider_type}
+                  onChange={(e) => {
+                    setProviderPreset('manual')
+                    setProviderForm({ ...providerForm, provider_type: e.target.value })
+                  }}
+                  required
+                  placeholder="aws, r2, minio, …"
+                />
+              </label>
+              <label className="block text-xs text-slate-400">
+                Endpoint {providerForm.provider_type === 'aws' ? '(leave empty for AWS)' : ''}
+                <input
+                  className="mt-1 w-full rounded-md bg-surface-900 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                  value={providerForm.endpoint}
+                  onChange={(e) => setProviderForm({ ...providerForm, endpoint: e.target.value })}
+                  placeholder={providerForm.provider_type === 'aws' ? 'empty = default AWS endpoint' : 'https://…'}
+                />
+              </label>
+              <label className="block text-xs text-slate-400">
+                Region
+                <input
+                  className="mt-1 w-full rounded-md bg-surface-900 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                  value={providerForm.region}
+                  onChange={(e) => setProviderForm({ ...providerForm, region: e.target.value })}
+                  required
+                  placeholder="us-east-1"
+                />
+              </label>
+              <label className="block text-xs text-slate-400">
+                Access key
+                <input
+                  className="mt-1 w-full rounded-md bg-surface-900 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  value={providerForm.access_key_id}
+                  onChange={(e) => setProviderForm({ ...providerForm, access_key_id: e.target.value })}
+                  required
+                  autoComplete="off"
+                />
+              </label>
+              <label className="block text-xs text-slate-400">
+                Secret key
+                <input
+                  className="mt-1 w-full rounded-md bg-surface-900 border border-slate-700 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  type="password"
+                  value={providerForm.secret_access_key}
+                  onChange={(e) => setProviderForm({ ...providerForm, secret_access_key: e.target.value })}
+                  required
+                  autoComplete="new-password"
+                />
+              </label>
               <div className="flex gap-2 pt-1">
                 <button
                   type="button"
