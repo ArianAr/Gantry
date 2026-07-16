@@ -81,9 +81,9 @@ Goal: make network-exposed and always-on deployments safer and more operationall
 - [x] Surface next run time + last scheduled job in API/UI
 
 ### M5.4 Ops polish
-- [ ] Graceful job cancel from UI (API already has cancel path — wire end-to-end)
-- [ ] Configurable listen / DB via documented env (already partial)
-- [ ] Structured logging option (JSON) for journald / containers
+- [x] Graceful job cancel from UI (API already has cancel path — wire end-to-end)
+- [x] Configurable listen / DB via documented env (already partial)
+- [x] Structured logging option (JSON) for journald / containers
 
 **Exit criteria:** auth optional but production-documented; secrets encrypted at rest; at least one schedule mechanism working end-to-end; v0.2.0 release.
 
