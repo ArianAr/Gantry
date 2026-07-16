@@ -105,7 +105,7 @@ Goal: make network-exposed and always-on deployments safer and more operationall
 ## M7 — Advanced sync (planned)
 
 - [x] Object integrity modes (size + ETag default; size-only mode)
-- [ ] Multi-job queue prioritization UI
+- [x] Multi-job queue prioritization UI (priority + max concurrent jobs)
 - [x] Multi-target fan-out (one source → N destinations via `extra_targets`)
 - [ ] Bidirectional sync (explicit, carefully scoped)
 - [ ] Bandwidth schedules / maintenance windows

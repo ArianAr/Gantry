@@ -94,13 +94,25 @@ type transferTask struct {
 	Action       DryRunAction
 }
 
+// queuedStart is a job waiting for a free concurrent slot.
+type queuedStart struct {
+	job  *db.JobRun
+	rule *db.SyncRule
+}
+
 // Engine coordinates dry-runs and streaming sync jobs.
 type Engine struct {
 	DB      *db.DB
 	Emitter EventEmitter
+	// MaxConcurrentJobs limits simultaneous active syncs (queued jobs wait). Default 2.
+	MaxConcurrentJobs int
+
 	mu      sync.Mutex
 	cancels map[string]context.CancelFunc
 	stats   map[string]*EngineStats
+	queue   []queuedStart // waiting starts, priority-ordered on insert
+	running int           // active runJob goroutines
+	jobCtx  context.Context
 }
 
 // NewEngine creates an engine.
@@ -109,11 +121,26 @@ func NewEngine(database *db.DB, emit EventEmitter) *Engine {
 		emit = nopEmitter{}
 	}
 	return &Engine{
-		DB:      database,
-		Emitter: emit,
-		cancels: make(map[string]context.CancelFunc),
-		stats:   make(map[string]*EngineStats),
+		DB:                database,
+		Emitter:           emit,
+		MaxConcurrentJobs: 2,
+		cancels:           make(map[string]context.CancelFunc),
+		stats:             make(map[string]*EngineStats),
+		jobCtx:            context.Background(),
 	}
+}
+
+// SetMaxConcurrentJobs clamps and sets the concurrent job limit (1–32).
+func (e *Engine) SetMaxConcurrentJobs(n int) {
+	if n < 1 {
+		n = 1
+	}
+	if n > 32 {
+		n = 32
+	}
+	e.mu.Lock()
+	e.MaxConcurrentJobs = n
+	e.mu.Unlock()
 }
 
 // GetStats returns live stats for a job, if any.
@@ -134,16 +161,41 @@ func (e *Engine) ActiveStats() []*EngineStats {
 	return out
 }
 
-// CancelJob cancels a running job.
+// CancelJob cancels a running job or removes a still-queued job from the wait list.
 func (e *Engine) CancelJob(jobID string) bool {
 	e.mu.Lock()
+	// Remove from wait queue if present.
+	for i, q := range e.queue {
+		if q.job.ID == jobID {
+			e.queue = append(e.queue[:i], e.queue[i+1:]...)
+			e.mu.Unlock()
+			e.markJobCancelled(q.job)
+			return true
+		}
+	}
 	cancel, ok := e.cancels[jobID]
 	e.mu.Unlock()
 	if ok && cancel != nil {
 		cancel()
 		return true
 	}
-	return false
+	// Fall back: mark DB-queued job cancelled (e.g. after restart with orphaned queue row).
+	job, err := e.DB.GetJobRun(jobID)
+	if err != nil || job.Status != db.JobStatusQueued {
+		return false
+	}
+	e.markJobCancelled(job)
+	return true
+}
+
+func (e *Engine) markJobCancelled(job *db.JobRun) {
+	completed := time.Now().UTC()
+	job.Status = db.JobStatusCancelled
+	job.CompletedAt = &completed
+	_ = e.DB.UpdateJobRun(job)
+	metrics.JobsCancelled.Inc()
+	e.log(job.ID, "job cancelled (queued)")
+	e.Emitter.Emit(Event{Type: EventJob, JobID: job.ID, Message: "job cancelled", Timestamp: completed, Payload: job})
 }
 
 func (e *Engine) log(jobID, msg string) {
@@ -403,8 +455,9 @@ func (e *Engine) DryRun(ctx context.Context, rule *db.SyncRule) (*DryRunResult, 
 	return result, nil
 }
 
-// StartJob launches a background sync for the given rule, returning the JobRun.
+// StartJob enqueues a sync for the given rule. It starts immediately if a concurrent slot is free.
 func (e *Engine) StartJob(parent context.Context, ruleID string) (*db.JobRun, error) {
+	_ = parent // jobs use engine lifetime context; request ctx must not cancel transfers
 	rule, err := e.DB.GetRule(ruleID)
 	if err != nil {
 		return nil, fmt.Errorf("rule: %w", err)
@@ -416,33 +469,78 @@ func (e *Engine) StartJob(parent context.Context, ruleID string) (*db.JobRun, er
 		SyncRuleID: rule.ID,
 		Status:     db.JobStatusQueued,
 		IsDryRun:   false,
+		Priority:   rule.Priority,
 		StartedAt:  &now,
 	}
 	if err := e.DB.CreateJobRun(job); err != nil {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithCancel(parent)
-	e.mu.Lock()
-	e.cancels[job.ID] = cancel
-	stats := NewEngineStats(job.ID, rule.ID)
-	e.stats[job.ID] = stats
-	e.mu.Unlock()
-
 	metrics.JobsStarted.Inc()
-	metrics.ActiveJobs.Inc()
-	go e.runJob(ctx, job, rule, stats)
+	e.Emitter.Emit(Event{Type: EventJob, JobID: job.ID, Message: "job queued", Timestamp: now, Payload: job})
+	e.log(job.ID, fmt.Sprintf("queued sync rule %q (priority=%d)", rule.Name, job.Priority))
+
+	e.mu.Lock()
+	e.enqueueLocked(queuedStart{job: job, rule: rule})
+	e.dispatchLocked()
+	e.mu.Unlock()
 	return job, nil
 }
 
-func (e *Engine) runJob(ctx context.Context, job *db.JobRun, rule *db.SyncRule, stats *EngineStats) {
-	defer func() {
-		e.mu.Lock()
-		delete(e.cancels, job.ID)
-		delete(e.stats, job.ID)
-		e.mu.Unlock()
-	}()
+// enqueueLocked inserts by priority desc, then FIFO among equals.
+func (e *Engine) enqueueLocked(item queuedStart) {
+	e.queue = append(e.queue, item)
+	// Insertion sort by priority desc (stable for equal priority via append-then-swap leftward only on higher).
+	for i := len(e.queue) - 1; i > 0; i-- {
+		if e.queue[i].job.Priority <= e.queue[i-1].job.Priority {
+			break
+		}
+		e.queue[i], e.queue[i-1] = e.queue[i-1], e.queue[i]
+	}
+}
 
+func (e *Engine) dispatchLocked() {
+	max := e.MaxConcurrentJobs
+	if max < 1 {
+		max = 1
+	}
+	for e.running < max && len(e.queue) > 0 {
+		item := e.queue[0]
+		e.queue = e.queue[1:]
+		e.running++
+
+		ctx, cancel := context.WithCancel(e.jobCtx)
+		e.cancels[item.job.ID] = cancel
+		stats := NewEngineStats(item.job.ID, item.rule.ID)
+		e.stats[item.job.ID] = stats
+		metrics.ActiveJobs.Inc()
+
+		go func(job *db.JobRun, rule *db.SyncRule, st *EngineStats, c context.Context) {
+			defer e.jobSlotReleased(job.ID)
+			e.runJob(c, job, rule, st)
+		}(item.job, item.rule, stats, ctx)
+	}
+}
+
+func (e *Engine) jobSlotReleased(jobID string) {
+	e.mu.Lock()
+	delete(e.cancels, jobID)
+	delete(e.stats, jobID)
+	if e.running > 0 {
+		e.running--
+	}
+	e.dispatchLocked()
+	e.mu.Unlock()
+}
+
+// QueueDepth returns waiting + running counts for UI/tests.
+func (e *Engine) QueueDepth() (queued, running int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return len(e.queue), e.running
+}
+
+func (e *Engine) runJob(ctx context.Context, job *db.JobRun, rule *db.SyncRule, stats *EngineStats) {
 	job.Status = db.JobStatusActive
 	_ = e.DB.UpdateJobRun(job)
 	e.Emitter.Emit(Event{Type: EventJob, JobID: job.ID, Message: "job started", Timestamp: time.Now().UTC(), Payload: job})

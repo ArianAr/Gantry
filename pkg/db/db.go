@@ -71,6 +71,8 @@ type SyncRule struct {
 	BandwidthLimitKbps int        `gorm:"default:0" json:"bandwidth_limit_kbps"`
 	// CompareMode is "etag" (default: size+etag) or "size" (size only).
 	CompareMode string `gorm:"default:etag" json:"compare_mode"`
+	// Priority: higher values start before lower when the job queue has free slots (default 0).
+	Priority int `gorm:"default:0" json:"priority"`
 	// ScheduleCron is a standard 5-field cron expression (min hour dom mon dow). Empty = no schedule.
 	ScheduleCron    string     `json:"schedule_cron"`
 	ScheduleEnabled bool       `gorm:"default:false" json:"schedule_enabled"`
@@ -151,6 +153,7 @@ type JobRun struct {
 	SyncRuleID           string     `gorm:"not null;index" json:"sync_rule_id"`
 	Status               string     `gorm:"not null;index" json:"status"`
 	IsDryRun             bool       `gorm:"not null" json:"is_dry_run"`
+	Priority             int        `gorm:"default:0;index" json:"priority"`
 	TotalFilesDiscovered int64      `gorm:"default:0" json:"total_files_discovered"`
 	TotalBytesDiscovered int64      `gorm:"default:0" json:"total_bytes_discovered"`
 	FilesTransferred     int64      `gorm:"default:0" json:"files_transferred"`
@@ -433,13 +436,28 @@ func (d *DB) ListJobRuns(limit int) ([]JobRun, error) {
 	return list, err
 }
 
-// ListActiveJobs returns jobs currently queued or active.
+// ListActiveJobs returns jobs currently queued or active (queued first by priority desc).
 func (d *DB) ListActiveJobs() ([]JobRun, error) {
 	var list []JobRun
 	err := d.gorm.Where("status IN ?", []string{
 		JobStatusQueued, JobStatusDryRunning, JobStatusActive,
-	}).Order("rowid asc").Find(&list).Error
+	}).Order("CASE status WHEN 'active' THEN 0 WHEN 'dry_running' THEN 0 ELSE 1 END, priority desc, rowid asc").Find(&list).Error
 	return list, err
+}
+
+// ListQueuedJobs returns only queued jobs ordered for dispatch (highest priority first).
+func (d *DB) ListQueuedJobs() ([]JobRun, error) {
+	var list []JobRun
+	err := d.gorm.Where("status = ?", JobStatusQueued).
+		Order("priority desc, rowid asc").Find(&list).Error
+	return list, err
+}
+
+// CountJobsByStatus counts jobs with the given status.
+func (d *DB) CountJobsByStatus(status string) (int64, error) {
+	var n int64
+	err := d.gorm.Model(&JobRun{}).Where("status = ?", status).Count(&n).Error
+	return n, err
 }
 
 // PurgeOldJobs deletes terminal job runs whose completed_at is older than cutoff.

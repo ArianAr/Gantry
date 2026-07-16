@@ -13,11 +13,12 @@ import (
 
 // Options configures the HTTP server.
 type Options struct {
-	DB        *db.DB
-	StaticFS  fs.FS // frontend dist (may be nil in tests)
-	Mode      string
-	Auth      AuthConfig
-	Scheduler CronValidator // optional schedule validation
+	DB                *db.DB
+	StaticFS          fs.FS // frontend dist (may be nil in tests)
+	Mode              string
+	Auth              AuthConfig
+	Scheduler         CronValidator // optional schedule validation
+	MaxConcurrentJobs int           // 0 = engine default (2)
 }
 
 // NewRouter builds the Gin engine with API + optional SPA static hosting.
@@ -29,6 +30,9 @@ func NewRouter(opts Options) (*gin.Engine, *Server) {
 
 	hub := NewHub()
 	engine := s3.NewEngine(opts.DB, hub)
+	if opts.MaxConcurrentJobs > 0 {
+		engine.SetMaxConcurrentJobs(opts.MaxConcurrentJobs)
+	}
 	srv := &Server{DB: opts.DB, Engine: engine, Hub: hub, Scheduler: opts.Scheduler}
 
 	r := gin.New()
