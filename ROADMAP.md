@@ -93,10 +93,10 @@ Goal: make network-exposed and always-on deployments safer and more operationall
 
 - [x] Prometheus metrics (`/metrics`): job counts, bytes, errors, active workers
 - [ ] Optional OpenTelemetry traces for transfer spans
-- [ ] Job history retention / purge policy
-- [ ] Stronger cancel + resume semantics
-- [ ] Health/readiness split if needed (`/healthz` vs `/readyz`)
-- [ ] Chaos-friendly timeouts and retry policy documentation
+- [x] Job history retention / purge policy
+- [x] Stronger cancel + resume semantics (cancel API + UI; no mid-object resume for S3 streams)
+- [x] Health/readiness split if needed (`/healthz` vs `/readyz`)
+- [x] Chaos-friendly timeouts and retry policy documentation
 
 **Exit criteria:** scrapeable metrics; retention controls; documented ops runbook; v0.3.0.
 

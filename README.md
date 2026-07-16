@@ -38,6 +38,8 @@ docker run --rm -p 8080:8080 \
   ghcr.io/arianar/gantry:latest
 ```
 
+The image stores SQLite at `/data/gantry.db` (user `nonroot`). Always mount a volume on `/data` so the database persists and is writable.
+
 Open [http://localhost:8080](http://localhost:8080).
 
 Pinned versions:
@@ -90,6 +92,7 @@ Dark single-page console with three tabs:
 | `-secrets-key` | empty | Encrypt provider secrets at rest (AES-256-GCM); empty = plaintext in DB |
 | `-trust-proxy-headers` | `false` | Trust `Remote-User` / `X-Remote-User` / `X-Forwarded-User` |
 | `-log-json` | `false` | Emit process logs as JSON lines (stdout) |
+| `-job-retention-days` | `0` | Purge terminal jobs older than N days (`0` = keep forever) |
 | `-version` | — | Print version and exit |
 
 Environment (optional):
@@ -102,6 +105,7 @@ Environment (optional):
 | `GANTRY_SECRETS_KEY` | Passphrase for at-rest encryption of provider secrets |
 | `GANTRY_TRUST_PROXY_HEADERS` | `true`/`false` — reverse-proxy identity headers |
 | `GANTRY_LOG_JSON` | `true`/`false` — JSON process logs |
+| `GANTRY_JOB_RETENTION_DAYS` | Purge completed/failed/cancelled jobs older than N days |
 
 ### Authentication
 
@@ -151,6 +155,7 @@ When set, provider `secret_access_key` values are stored as AES-256-GCM cipherte
 | `GET` | `/api/version` | Build version info |
 | `GET` | `/metrics` | Prometheus metrics (unauthenticated; protect at network edge) |
 | `GET` | `/healthz` | Liveness probe |
+| `GET` | `/readyz` | Readiness probe (SQLite ping) |
 
 ---
 

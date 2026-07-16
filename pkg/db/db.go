@@ -2,6 +2,8 @@ package db
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -148,6 +150,13 @@ func Open(path string, secretsKey ...string) (*DB, error) {
 	if path == "" {
 		path = "gantry.db"
 	}
+	// Ensure parent directory exists (Docker default is /data/gantry.db; missing
+	// /data yields SQLITE_CANTOPEN, often misreported as "out of memory (14)").
+	if dir := filepath.Dir(path); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return nil, fmt.Errorf("create database directory %q: %w", dir, err)
+		}
+	}
 	key := ""
 	if len(secretsKey) > 0 {
 		key = secretsKey[0]
@@ -158,7 +167,7 @@ func Open(path string, secretsKey ...string) (*DB, error) {
 		Logger: logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("open sqlite: %w", err)
+		return nil, fmt.Errorf("open sqlite %q: %w (ensure the directory exists and is writable by the process user)", path, err)
 	}
 	d := &DB{gorm: g, secretsKey: key}
 	if err := d.migrate(); err != nil {
@@ -401,4 +410,24 @@ func (d *DB) ListActiveJobs() ([]JobRun, error) {
 		JobStatusQueued, JobStatusDryRunning, JobStatusActive,
 	}).Order("rowid asc").Find(&list).Error
 	return list, err
+}
+
+// PurgeOldJobs deletes terminal job runs whose completed_at is older than cutoff.
+// Returns the number of rows deleted. Never touches queued/active/dry_running jobs.
+func (d *DB) PurgeOldJobs(cutoff time.Time) (int64, error) {
+	res := d.gorm.Where(
+		"status IN ? AND completed_at IS NOT NULL AND completed_at < ?",
+		[]string{JobStatusCompleted, JobStatusFailed, JobStatusCancelled},
+		cutoff.UTC(),
+	).Delete(&JobRun{})
+	return res.RowsAffected, res.Error
+}
+
+// Ping checks the underlying SQL connection (for readiness probes).
+func (d *DB) Ping() error {
+	sqlDB, err := d.gorm.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Ping()
 }
