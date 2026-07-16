@@ -8,24 +8,24 @@
 - [x] VERSION + CHANGELOG
 
 ### M1 — Core Engine
-- [ ] SQLite models (Provider, SyncRule, JobRun)
-- [ ] Multi-provider S3 clients
-- [ ] Streaming worker pool (`io.Pipe`, ProgressReader, rate limit)
+- [x] SQLite models (Provider, SyncRule, JobRun)
+- [x] Multi-provider S3 clients
+- [x] Streaming worker pool (`io.Pipe`, ProgressReader, rate limit)
 
 ### M2 — API Surface
-- [ ] REST providers / rules / jobs
-- [ ] Dry-run comparison matrix
-- [ ] SSE live metrics stream
+- [x] REST providers / rules / jobs
+- [x] Dry-run comparison matrix
+- [x] SSE live metrics stream
 
 ### M3 — Dashboard & Image
-- [ ] React console (Progress / Rules / Providers)
-- [ ] `go:embed` single binary
-- [ ] Multi-stage Dockerfile
+- [x] React console (Progress / Rules / Providers)
+- [x] `go:embed` single binary
+- [x] Multi-stage Dockerfile
 
 ### M4 — Release & Registry
-- [ ] `release.yml` (tag → GitHub Release + GHCR multi-arch)
-- [ ] Polished README with badges
-- [ ] First release **v0.1.0**
+- [x] `release.yml` (tag → GitHub Release + GHCR multi-arch)
+- [x] Polished README with badges
+- [x] First release **v0.1.0**
 
 ## Post-v1 ideas
 
