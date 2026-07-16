@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prometheus metrics at `GET /metrics` (jobs, bytes, files, active workers/jobs)
 - Job history retention (`GANTRY_JOB_RETENTION_DAYS` / `-job-retention-days`)
 - Readiness probe `GET /readyz` (DB ping)
+- Rule `compare_mode`: `etag` (default) or `size` for skip/modify decisions
 
 ### Changed
 - Multi-arch Docker builds cross-compile Go on the host platform instead of QEMU-emulating arm64 (much faster image builds)

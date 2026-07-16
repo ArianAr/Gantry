@@ -202,6 +202,22 @@ func patternMatch(key, base, pattern string) bool {
 	return strings.Contains(key, pattern) || base == pattern
 }
 
+// objectsMatch decides whether source and target are considered identical.
+// mode "size" compares size only; "etag" (default) requires size match and etag match when both present.
+func objectsMatch(src, dst ObjectInfo, mode string) bool {
+	if src.Size != dst.Size {
+		return false
+	}
+	if mode == "size" {
+		return true
+	}
+	// etag mode: if either side lacks etag, size match is enough
+	if dst.ETag == "" || src.ETag == "" {
+		return true
+	}
+	return dst.ETag == src.ETag
+}
+
 func applyFilters(obj ObjectInfo, rule *db.SyncRule) (bool, string) {
 	include := db.ParsePatterns(rule.IncludePatterns)
 	exclude := db.ParsePatterns(rule.ExcludePatterns)
@@ -305,15 +321,19 @@ func (e *Engine) DryRun(ctx context.Context, rule *db.SyncRule) (*DryRunResult, 
 		}
 		seenTarget[tKey] = struct{}{}
 		if dst, exists := dstByKey[tKey]; exists {
-			if dst.Size == src.Size && (dst.ETag == "" || src.ETag == "" || dst.ETag == src.ETag) {
+			if objectsMatch(src, dst, rule.NormalizeCompareMode()) {
 				result.Items = append(result.Items, DryRunItem{
 					SourceKey: src.Key, TargetKey: tKey, Size: src.Size, Action: ActionSkip, Reason: "already in sync",
 				})
 				result.SkipCount++
 				continue
 			}
+			reason := "size differs"
+			if rule.NormalizeCompareMode() == "etag" {
+				reason = "size or etag differs"
+			}
 			result.Items = append(result.Items, DryRunItem{
-				SourceKey: src.Key, TargetKey: tKey, Size: src.Size, Action: ActionModify, Reason: "size or etag differs",
+				SourceKey: src.Key, TargetKey: tKey, Size: src.Size, Action: ActionModify, Reason: reason,
 			})
 			result.ModifyCount++
 			result.TotalBytesToSync += src.Size

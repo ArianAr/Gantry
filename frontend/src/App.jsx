@@ -127,6 +127,7 @@ const emptyRule = {
   bandwidth_limit_kbps: 0,
   schedule_cron: '',
   schedule_enabled: false,
+  compare_mode: 'etag',
 }
 
 export default function App() {
@@ -728,6 +729,13 @@ export default function App() {
                   <input className="field" type="number" min={0} value={ruleForm.bandwidth_limit_kbps} onChange={(e) => setRuleForm({ ...ruleForm, bandwidth_limit_kbps: e.target.value })} />
                 </label>
               </div>
+              <label className="block text-xs text-slate-400">
+                Compare mode
+                <select className="field" value={ruleForm.compare_mode} onChange={(e) => setRuleForm({ ...ruleForm, compare_mode: e.target.value })}>
+                  <option value="etag">Size + ETag (default)</option>
+                  <option value="size">Size only</option>
+                </select>
+              </label>
               <label className="flex items-center gap-2 text-sm text-slate-300">
                 <input type="checkbox" checked={ruleForm.delete_on_target} onChange={(e) => setRuleForm({ ...ruleForm, delete_on_target: e.target.checked })} />
                 Strict mirror (delete on target)
