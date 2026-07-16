@@ -1,17 +1,23 @@
 # syntax=docker/dockerfile:1
 
-# --- Phase 1: frontend ---
-FROM node:22-alpine AS frontend
+# Multi-arch builds: compile on the builder host (BUILDPLATFORM), not under QEMU.
+# Go cross-compiles to TARGETARCH natively — arm64 images no longer emulate the
+# entire Go toolchain (the previous bottleneck).
+
+# --- Phase 1: frontend (once, on host arch) ---
+FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci || npm install
 COPY frontend/ ./
 RUN npm run build
 
-# --- Phase 2: Go binary ---
-FROM golang:1.24-alpine AS builder
+# --- Phase 2: Go binary (native toolchain, cross-compile to target) ---
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
 WORKDIR /src
 ENV GOTOOLCHAIN=auto
+ARG TARGETOS=linux
+ARG TARGETARCH
 RUN apk add --no-cache git ca-certificates
 COPY go.mod go.sum ./
 RUN go mod download
@@ -22,14 +28,14 @@ ARG VERSION=dev
 ARG COMMIT=none
 ARG BUILD_DATE=unknown
 
-RUN CGO_ENABLED=0 GOOS=linux go build \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
   -ldflags "-s -w \
     -X github.com/ArianAr/Gantry/internal/version.Version=${VERSION} \
     -X github.com/ArianAr/Gantry/internal/version.Commit=${COMMIT} \
     -X github.com/ArianAr/Gantry/internal/version.BuildDate=${BUILD_DATE}" \
   -o /out/gantry .
 
-# --- Phase 3: minimal runtime ---
+# --- Phase 3: minimal runtime (per-target arch) ---
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /
 COPY --from=builder /out/gantry /gantry
