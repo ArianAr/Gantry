@@ -12,10 +12,11 @@ import (
 
 // Options configures the HTTP server.
 type Options struct {
-	DB       *db.DB
-	StaticFS fs.FS // frontend dist (may be nil in tests)
-	Mode     string
-	Auth     AuthConfig
+	DB        *db.DB
+	StaticFS  fs.FS // frontend dist (may be nil in tests)
+	Mode      string
+	Auth      AuthConfig
+	Scheduler CronValidator // optional schedule validation
 }
 
 // NewRouter builds the Gin engine with API + optional SPA static hosting.
@@ -27,7 +28,7 @@ func NewRouter(opts Options) (*gin.Engine, *Server) {
 
 	hub := NewHub()
 	engine := s3.NewEngine(opts.DB, hub)
-	srv := &Server{DB: opts.DB, Engine: engine, Hub: hub}
+	srv := &Server{DB: opts.DB, Engine: engine, Hub: hub, Scheduler: opts.Scheduler}
 
 	r := gin.New()
 	r.Use(gin.Recovery(), gin.Logger(), opts.Auth.Middleware())

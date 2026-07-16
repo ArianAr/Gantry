@@ -17,6 +17,7 @@ import (
 	"github.com/ArianAr/Gantry/internal/version"
 	"github.com/ArianAr/Gantry/pkg/api"
 	"github.com/ArianAr/Gantry/pkg/db"
+	"github.com/ArianAr/Gantry/pkg/schedule"
 )
 
 //go:embed all:frontend/dist
@@ -50,11 +51,18 @@ func main() {
 		Token:             *apiToken,
 		TrustProxyHeaders: *trustProxy,
 	}
-	router, _ := api.NewRouter(api.Options{
-		DB:       database,
-		StaticFS: staticRoot,
-		Auth:     auth,
+
+	sched := schedule.New(database, nil) // engine set after router construction
+	router, apiSrv := api.NewRouter(api.Options{
+		DB:        database,
+		StaticFS:  staticRoot,
+		Auth:      auth,
+		Scheduler: sched,
 	})
+	sched.Engine = apiSrv.Engine
+	rootCtx, rootCancel := context.WithCancel(context.Background())
+	defer rootCancel()
+	sched.Start(rootCtx)
 
 	srv := &http.Server{
 		Addr:              *addr,
@@ -71,7 +79,7 @@ func main() {
 		} else if auth.TrustProxyHeaders {
 			authMode = "proxy-headers"
 		}
-		log.Printf("Gantry %s listening on %s (db=%s, auth=%s)", version.Version, *addr, *dbPath, authMode)
+		log.Printf("Gantry %s listening on %s (db=%s, auth=%s, scheduler=on)", version.Version, *addr, *dbPath, authMode)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server: %v", err)
 		}
@@ -81,6 +89,8 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 
+	rootCancel()
+	sched.Stop()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	log.Printf("shutting down...")

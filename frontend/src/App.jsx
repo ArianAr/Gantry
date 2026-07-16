@@ -124,6 +124,8 @@ const emptyRule = {
   delete_on_target: false,
   concurrency_limit: 4,
   bandwidth_limit_kbps: 0,
+  schedule_cron: '',
+  schedule_enabled: false,
 }
 
 export default function App() {
@@ -702,6 +704,16 @@ export default function App() {
                 <input type="checkbox" checked={ruleForm.delete_on_target} onChange={(e) => setRuleForm({ ...ruleForm, delete_on_target: e.target.checked })} />
                 Strict mirror (delete on target)
               </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block text-xs text-slate-400 col-span-2">
+                  Schedule cron (5-field, e.g. */15 * * * *)
+                  <input className="field" placeholder="leave empty for manual only" value={ruleForm.schedule_cron} onChange={(e) => setRuleForm({ ...ruleForm, schedule_cron: e.target.value })} />
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-300 col-span-2">
+                  <input type="checkbox" checked={ruleForm.schedule_enabled} onChange={(e) => setRuleForm({ ...ruleForm, schedule_enabled: e.target.checked })} />
+                  Enable schedule
+                </label>
+              </div>
               <button type="submit" disabled={busy} className="w-full rounded-md bg-blue-600 hover:bg-blue-500 py-2 text-sm font-medium">
                 Save rule
               </button>
@@ -721,6 +733,9 @@ export default function App() {
                           </div>
                           <div className="text-[11px] text-slate-500 mt-0.5">
                             {r.delete_on_target ? 'Mirror' : 'Safe sync'} · concurrency {r.concurrency_limit}
+                            {r.schedule_enabled && r.schedule_cron
+                              ? ` · cron ${r.schedule_cron}${r.next_run_at ? ` · next ${new Date(r.next_run_at).toLocaleString()}` : ''}`
+                              : ''}
                           </div>
                         </div>
                         <div className="flex flex-col gap-1">
