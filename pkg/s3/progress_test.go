@@ -71,23 +71,29 @@ func TestMapTargetKey(t *testing.T) {
 }
 
 func TestObjectsMatch(t *testing.T) {
-	src := ObjectInfo{Size: 10, ETag: "abc"}
-	if !objectsMatch(src, ObjectInfo{Size: 10, ETag: "abc"}) {
-		t.Fatal("expected match")
+	src := ObjectInfo{Key: "a", Size: 10, ETag: "abc"}
+	dst := ObjectInfo{Key: "a", Size: 10, ETag: "abc"}
+	if !objectsMatch(src, dst, "etag") {
+		t.Fatal("etag match")
 	}
-	if objectsMatch(src, ObjectInfo{Size: 11, ETag: "abc"}) {
+	dst.ETag = "xyz"
+	if objectsMatch(src, dst, "etag") {
+		t.Fatal("etag mismatch should fail")
+	}
+	if !objectsMatch(src, dst, "size") {
+		t.Fatal("size mode ignores etag")
+	}
+	dst.Size = 11
+	if objectsMatch(src, dst, "size") {
 		t.Fatal("size mismatch")
 	}
-	if objectsMatch(src, ObjectInfo{Size: 10, ETag: "xyz"}) {
-		t.Fatal("etag mismatch")
-	}
-	if !objectsMatch(src, ObjectInfo{Size: 10, ETag: ""}) {
+	if !objectsMatch(src, ObjectInfo{Size: 10, ETag: ""}, "etag") {
 		t.Fatal("empty etag should match on size")
 	}
 }
 
 func TestClassifyAgainstExtraDestination(t *testing.T) {
-	rule := &db.SyncRule{SourcePrefix: "src/", TargetPrefix: "dst/"}
+	rule := &db.SyncRule{SourcePrefix: "src/", TargetPrefix: "dst/", CompareMode: "etag"}
 	srcObjs := []ObjectInfo{
 		{Key: "src/a.txt", Size: 5, ETag: "e1"},
 		{Key: "src/b.txt", Size: 7, ETag: "e2"},

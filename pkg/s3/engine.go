@@ -204,6 +204,22 @@ func patternMatch(key, base, pattern string) bool {
 	return strings.Contains(key, pattern) || base == pattern
 }
 
+// objectsMatch decides whether source and target are considered identical.
+// mode "size" compares size only; "etag" (default) requires size match and etag match when both present.
+func objectsMatch(src, dst ObjectInfo, mode string) bool {
+	if src.Size != dst.Size {
+		return false
+	}
+	if mode == "size" {
+		return true
+	}
+	// etag mode: if either side lacks etag, size match is enough
+	if dst.ETag == "" || src.ETag == "" {
+		return true
+	}
+	return dst.ETag == src.ETag
+}
+
 func applyFilters(obj ObjectInfo, rule *db.SyncRule) (bool, string) {
 	include := db.ParsePatterns(rule.IncludePatterns)
 	exclude := db.ParsePatterns(rule.ExcludePatterns)
@@ -259,17 +275,6 @@ func listObjects(ctx context.Context, cli *Client, bucket, prefix string) ([]Obj
 	return out, nil
 }
 
-// objectsMatch reports whether source and destination objects are considered in sync.
-func objectsMatch(src, dst ObjectInfo) bool {
-	if dst.Size != src.Size {
-		return false
-	}
-	if dst.ETag == "" || src.ETag == "" {
-		return true
-	}
-	return dst.ETag == src.ETag
-}
-
 // classifyAgainstDestination compares filtered source objects to one destination listing.
 func classifyAgainstDestination(
 	result *DryRunResult,
@@ -280,6 +285,7 @@ func classifyAgainstDestination(
 	recordFilterSkips bool,
 	seenTarget map[string]struct{},
 ) {
+	mode := rule.NormalizeCompareMode()
 	for _, src := range srcObjs {
 		ok, reason := applyFilters(src, rule)
 		tKey := mapTargetKey(src.Key, rule.SourcePrefix, destPrefix)
@@ -297,7 +303,7 @@ func classifyAgainstDestination(
 			seenTarget[tKey] = struct{}{}
 		}
 		if dst, exists := dstByKey[tKey]; exists {
-			if objectsMatch(src, dst) {
+			if objectsMatch(src, dst, mode) {
 				result.Items = append(result.Items, DryRunItem{
 					SourceKey: src.Key, TargetKey: tKey, Destination: destBucket,
 					Size: src.Size, Action: ActionSkip, Reason: "already in sync",
@@ -305,9 +311,13 @@ func classifyAgainstDestination(
 				result.SkipCount++
 				continue
 			}
+			modReason := "size differs"
+			if mode == "etag" {
+				modReason = "size or etag differs"
+			}
 			result.Items = append(result.Items, DryRunItem{
 				SourceKey: src.Key, TargetKey: tKey, Destination: destBucket,
-				Size: src.Size, Action: ActionModify, Reason: "size or etag differs",
+				Size: src.Size, Action: ActionModify, Reason: modReason,
 			})
 			result.ModifyCount++
 			result.TotalBytesToSync += src.Size

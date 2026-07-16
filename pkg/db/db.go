@@ -69,6 +69,8 @@ type SyncRule struct {
 	DeleteOnTarget     bool       `gorm:"default:false" json:"delete_on_target"`
 	ConcurrencyLimit   int        `gorm:"default:4" json:"concurrency_limit"`
 	BandwidthLimitKbps int        `gorm:"default:0" json:"bandwidth_limit_kbps"`
+	// CompareMode is "etag" (default: size+etag) or "size" (size only).
+	CompareMode string `gorm:"default:etag" json:"compare_mode"`
 	// ScheduleCron is a standard 5-field cron expression (min hour dom mon dow). Empty = no schedule.
 	ScheduleCron    string     `json:"schedule_cron"`
 	ScheduleEnabled bool       `gorm:"default:false" json:"schedule_enabled"`
@@ -102,6 +104,16 @@ func ParseExtraTargets(s string) []ExtraTarget {
 		out = append(out, ExtraTarget{Bucket: bucket, Prefix: prefix})
 	}
 	return out
+}
+
+// NormalizeCompareMode returns etag or size.
+func (r *SyncRule) NormalizeCompareMode() string {
+	switch strings.ToLower(strings.TrimSpace(r.CompareMode)) {
+	case "size":
+		return "size"
+	default:
+		return "etag"
+	}
 }
 
 // TableName returns the sync_rules table name.
@@ -332,6 +344,7 @@ func (d *DB) DeleteProvider(id string) error {
 // CreateOrUpdateRule creates a rule or updates by ID when set and existing.
 func (d *DB) CreateOrUpdateRule(r *SyncRule) error {
 	r.ClampConcurrency()
+	r.CompareMode = r.NormalizeCompareMode()
 	if r.ID == "" {
 		r.ID = NewID()
 		if r.CreatedAt.IsZero() {
