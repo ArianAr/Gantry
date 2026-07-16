@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-07-16
+
 ### Added
 - Prometheus metrics at `GET /metrics` (jobs, bytes, files, active workers/jobs)
 - Job history retention (`GANTRY_JOB_RETENTION_DAYS` / `-job-retention-days`)
@@ -20,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Multi-arch Docker builds cross-compile Go on the host platform instead of QEMU-emulating arm64 (much faster image builds)
+- M6 observability and M7 advanced sync milestones complete (v1.0.0)
 
 ## [0.2.1] - 2026-07-16
 
