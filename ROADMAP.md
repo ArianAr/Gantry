@@ -110,13 +110,13 @@ Goal: make network-exposed and always-on deployments safer and more operationall
 - [x] Bidirectional sync (explicit; reverse never deletes / no fan-out)
 - [x] Bandwidth schedules / maintenance windows (`active_hours_utc` + per-rule bandwidth limit)
 
-**Exit criteria:** integrity mode + multi-target + queue UX + bidirectional/windows — **met** (v1.0.0).
+**Exit criteria:** integrity mode + multi-target + queue UX + bidirectional/windows — **met** (**v1.0.0**).
 
 ---
 
 ## Explicit non-goals (near term)
 
-- Full multi-user RBAC / SSO productization (proxy auth + shared token is enough for v0.x)
+- Full multi-user RBAC / SSO productization (proxy auth + shared token is enough for v1.x)
 - Clustered multi-node workers
 - Replacing cloud-native replication products (Gantry is a coordinator/UI for S3-compatible endpoints)
 
