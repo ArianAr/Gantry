@@ -167,6 +167,7 @@ type ruleRequest struct {
 	TargetProviderID   string  `json:"target_provider_id" binding:"required"`
 	TargetBucket       string  `json:"target_bucket" binding:"required"`
 	TargetPrefix       string  `json:"target_prefix"`
+	ExtraTargets       string  `json:"extra_targets"`
 	IncludePatterns    string  `json:"include_patterns"`
 	ExcludePatterns    string  `json:"exclude_patterns"`
 	MinSizeBytes       *int64  `json:"min_size_bytes"`
@@ -204,6 +205,7 @@ func (s *Server) createOrUpdateRule(c *gin.Context) {
 		TargetProviderID:   req.TargetProviderID,
 		TargetBucket:       req.TargetBucket,
 		TargetPrefix:       req.TargetPrefix,
+		ExtraTargets:       req.ExtraTargets,
 		IncludePatterns:    req.IncludePatterns,
 		ExcludePatterns:    req.ExcludePatterns,
 		MinSizeBytes:       req.MinSizeBytes,

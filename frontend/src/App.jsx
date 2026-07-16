@@ -117,6 +117,7 @@ const emptyRule = {
   target_provider_id: '',
   target_bucket: '',
   target_prefix: '',
+  extra_targets: '',
   include_patterns: '',
   exclude_patterns: '',
   min_size_bytes: '',
@@ -695,6 +696,15 @@ export default function App() {
                   <input className="field" value={ruleForm.target_prefix} onChange={(e) => setRuleForm({ ...ruleForm, target_prefix: e.target.value })} />
                 </label>
               </div>
+              <label className="block text-xs text-slate-400">
+                Extra targets (same provider; semicolon-separated <code className="text-slate-500">bucket</code> or <code className="text-slate-500">bucket:prefix</code>)
+                <input
+                  className="field"
+                  placeholder="backup-bucket;archive:cold/"
+                  value={ruleForm.extra_targets}
+                  onChange={(e) => setRuleForm({ ...ruleForm, extra_targets: e.target.value })}
+                />
+              </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block text-xs text-slate-400">
                   Include (e.g. .png;.jpg)
@@ -810,6 +820,7 @@ export default function App() {
                             it.action === 'delete' ? 'text-red-400' : 'text-slate-500'
                           }`}>{it.action}</span>
                           <span className="text-slate-300 truncate">{it.source_key || it.target_key}</span>
+                          {it.destination && <span className="text-slate-500 shrink-0">→ {it.destination}</span>}
                           <span className="text-slate-600 ml-auto shrink-0">{formatBytes(it.size)}</span>
                         </div>
                       ))}

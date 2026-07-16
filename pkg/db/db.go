@@ -58,6 +58,9 @@ type SyncRule struct {
 	TargetProviderID   string     `gorm:"not null;index" json:"target_provider_id"`
 	TargetBucket       string     `gorm:"not null" json:"target_bucket"`
 	TargetPrefix       string     `json:"target_prefix"`
+	// ExtraTargets is a semicolon-separated fan-out list of "bucket" or "bucket:prefix"
+	// on the same target provider as TargetProviderID.
+	ExtraTargets       string     `json:"extra_targets"`
 	IncludePatterns    string     `json:"include_patterns"` // semicolon-separated
 	ExcludePatterns    string     `json:"exclude_patterns"`
 	MinSizeBytes       *int64     `json:"min_size_bytes"`
@@ -74,6 +77,33 @@ type SyncRule struct {
 	LastScheduledAt *time.Time `json:"last_scheduled_at,omitempty"`
 	NextRunAt       *time.Time `json:"next_run_at,omitempty"`
 	CreatedAt       time.Time  `json:"created_at"`
+}
+
+// ExtraTarget is one fan-out destination (same target provider).
+type ExtraTarget struct {
+	Bucket string
+	Prefix string
+}
+
+// ParseExtraTargets parses "bucket" or "bucket:prefix" entries separated by ';'.
+func ParseExtraTargets(s string) []ExtraTarget {
+	parts := ParsePatterns(s)
+	if len(parts) == 0 {
+		return nil
+	}
+	out := make([]ExtraTarget, 0, len(parts))
+	for _, p := range parts {
+		bucket, prefix := p, ""
+		if i := strings.Index(p, ":"); i >= 0 {
+			bucket = strings.TrimSpace(p[:i])
+			prefix = strings.TrimSpace(p[i+1:])
+		}
+		if bucket == "" {
+			continue
+		}
+		out = append(out, ExtraTarget{Bucket: bucket, Prefix: prefix})
+	}
+	return out
 }
 
 // NormalizeCompareMode returns etag or size.

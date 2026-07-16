@@ -5,6 +5,8 @@ import (
 	"context"
 	"io"
 	"testing"
+
+	"github.com/ArianAr/Gantry/pkg/db"
 )
 
 func TestProgressReaderCounts(t *testing.T) {
@@ -84,5 +86,34 @@ func TestObjectsMatch(t *testing.T) {
 	dst.Size = 11
 	if objectsMatch(src, dst, "size") {
 		t.Fatal("size mismatch")
+	}
+	if !objectsMatch(src, ObjectInfo{Size: 10, ETag: ""}, "etag") {
+		t.Fatal("empty etag should match on size")
+	}
+}
+
+func TestClassifyAgainstExtraDestination(t *testing.T) {
+	rule := &db.SyncRule{SourcePrefix: "src/", TargetPrefix: "dst/", CompareMode: "etag"}
+	srcObjs := []ObjectInfo{
+		{Key: "src/a.txt", Size: 5, ETag: "e1"},
+		{Key: "src/b.txt", Size: 7, ETag: "e2"},
+	}
+	extraByKey := map[string]ObjectInfo{
+		"cold/a.txt": {Key: "cold/a.txt", Size: 5, ETag: "e1"}, // in sync
+	}
+	result := &DryRunResult{Items: make([]DryRunItem, 0)}
+	classifyAgainstDestination(result, srcObjs, extraByKey, rule, "backup", "cold/", false, nil)
+	if result.AddCount != 1 || result.SkipCount != 1 {
+		t.Fatalf("add=%d skip=%d items=%+v", result.AddCount, result.SkipCount, result.Items)
+	}
+	var addItem *DryRunItem
+	for i := range result.Items {
+		if result.Items[i].Action == ActionAdd {
+			addItem = &result.Items[i]
+			break
+		}
+	}
+	if addItem == nil || addItem.Destination != "backup" || addItem.TargetKey != "cold/b.txt" {
+		t.Fatalf("unexpected add item: %+v", addItem)
 	}
 }

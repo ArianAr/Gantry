@@ -178,6 +178,16 @@ When set, provider `secret_access_key` values are stored as AES-256-GCM cipherte
 
 Object data is streamed in-process: **GetObject → ProgressReader → io.Pipe → multipart Uploader**.
 
+### Multi-target fan-out
+
+A rule can copy to additional buckets on the **same target provider** via `extra_targets`:
+
+```text
+backup-bucket;archive:cold/
+```
+
+Each entry is `bucket` or `bucket:prefix`. Dry-run and sync classify and transfer each destination independently (separate GetObject→PutObject per destination). `delete_on_target` applies only to the primary target.
+
 Full product detail: [`specs.md`](./specs.md).
 
 ---
