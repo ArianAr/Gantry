@@ -1,0 +1,47 @@
+# Binaries
+/gantry
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Go
+/vendor/
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Build artifacts
+/dist/
+/build/
+*.tar.gz
+*.zip
