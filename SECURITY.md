@@ -32,7 +32,7 @@ Gantry is designed as a **self-hosted, single-operator** tool:
 - **Optional shared API token** (`GANTRY_API_TOKEN` / `-api-token`) gates the API and UI when set. Empty token = open access (local-lab default).
 - Optional **reverse-proxy identity headers** (`-trust-proxy-headers`) must only be used when the proxy is the sole ingress.
 - There is **no multi-user RBAC**. The token is a single shared secret, not per-user accounts.
-- Provider **access keys and secrets are stored in SQLite** (`gantry.db`) on disk. Protect the host filesystem and the database file.
+- Provider **access keys and secrets are stored in SQLite** (`gantry.db`). Set `GANTRY_SECRETS_KEY` to encrypt secrets at rest (AES-256-GCM). Without a key, secrets are plaintext — protect the DB file accordingly.
 - API responses **redact** secret access keys; secrets must never be logged.
 - Bind the service to localhost or place it behind a reverse proxy with TLS when exposing beyond a trusted network.
 
