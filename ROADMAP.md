@@ -106,7 +106,7 @@ Goal: make network-exposed and always-on deployments safer and more operationall
 
 - [ ] Object integrity modes (size + ETag default; optional checksum)
 - [ ] Multi-job queue prioritization UI
-- [ ] Multi-target fan-out (one source → N destinations)
+- [x] Multi-target fan-out (one source → N destinations via `extra_targets`)
 - [ ] Bidirectional sync (explicit, carefully scoped)
 - [ ] Bandwidth schedules / maintenance windows
 

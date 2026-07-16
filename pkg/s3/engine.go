@@ -67,11 +67,12 @@ const (
 
 // DryRunItem is one row in the dry-run matrix.
 type DryRunItem struct {
-	SourceKey string       `json:"source_key,omitempty"`
-	TargetKey string       `json:"target_key,omitempty"`
-	Size      int64        `json:"size"`
-	Action    DryRunAction `json:"action"`
-	Reason    string       `json:"reason,omitempty"`
+	SourceKey   string       `json:"source_key,omitempty"`
+	TargetKey   string       `json:"target_key,omitempty"`
+	Destination string       `json:"destination,omitempty"` // target bucket (primary or extra)
+	Size        int64        `json:"size"`
+	Action      DryRunAction `json:"action"`
+	Reason      string       `json:"reason,omitempty"`
 }
 
 // DryRunResult is the full dry-run response.
@@ -86,10 +87,11 @@ type DryRunResult struct {
 
 // transferTask is an internal worker task.
 type transferTask struct {
-	SourceKey string
-	TargetKey string
-	Size      int64
-	Action    DryRunAction
+	SourceKey    string
+	TargetKey    string
+	TargetBucket string // empty means rule.TargetBucket
+	Size         int64
+	Action       DryRunAction
 }
 
 // Engine coordinates dry-runs and streaming sync jobs.
@@ -257,7 +259,70 @@ func listObjects(ctx context.Context, cli *Client, bucket, prefix string) ([]Obj
 	return out, nil
 }
 
-// DryRun compares source and target without transferring.
+// objectsMatch reports whether source and destination objects are considered in sync.
+func objectsMatch(src, dst ObjectInfo) bool {
+	if dst.Size != src.Size {
+		return false
+	}
+	if dst.ETag == "" || src.ETag == "" {
+		return true
+	}
+	return dst.ETag == src.ETag
+}
+
+// classifyAgainstDestination compares filtered source objects to one destination listing.
+func classifyAgainstDestination(
+	result *DryRunResult,
+	srcObjs []ObjectInfo,
+	dstByKey map[string]ObjectInfo,
+	rule *db.SyncRule,
+	destBucket, destPrefix string,
+	recordFilterSkips bool,
+	seenTarget map[string]struct{},
+) {
+	for _, src := range srcObjs {
+		ok, reason := applyFilters(src, rule)
+		tKey := mapTargetKey(src.Key, rule.SourcePrefix, destPrefix)
+		if !ok {
+			if recordFilterSkips {
+				result.Items = append(result.Items, DryRunItem{
+					SourceKey: src.Key, TargetKey: tKey, Destination: destBucket,
+					Size: src.Size, Action: ActionSkip, Reason: reason,
+				})
+				result.SkipCount++
+			}
+			continue
+		}
+		if seenTarget != nil {
+			seenTarget[tKey] = struct{}{}
+		}
+		if dst, exists := dstByKey[tKey]; exists {
+			if objectsMatch(src, dst) {
+				result.Items = append(result.Items, DryRunItem{
+					SourceKey: src.Key, TargetKey: tKey, Destination: destBucket,
+					Size: src.Size, Action: ActionSkip, Reason: "already in sync",
+				})
+				result.SkipCount++
+				continue
+			}
+			result.Items = append(result.Items, DryRunItem{
+				SourceKey: src.Key, TargetKey: tKey, Destination: destBucket,
+				Size: src.Size, Action: ActionModify, Reason: "size or etag differs",
+			})
+			result.ModifyCount++
+			result.TotalBytesToSync += src.Size
+			continue
+		}
+		result.Items = append(result.Items, DryRunItem{
+			SourceKey: src.Key, TargetKey: tKey, Destination: destBucket,
+			Size: src.Size, Action: ActionAdd,
+		})
+		result.AddCount++
+		result.TotalBytesToSync += src.Size
+	}
+}
+
+// DryRun compares source and target (plus optional extra_targets) without transferring.
 func (e *Engine) DryRun(ctx context.Context, rule *db.SyncRule) (*DryRunResult, error) {
 	srcP, err := e.DB.GetProvider(rule.SourceProviderID)
 	if err != nil {
@@ -293,51 +358,38 @@ func (e *Engine) DryRun(ctx context.Context, rule *db.SyncRule) (*DryRunResult, 
 	result := &DryRunResult{Items: make([]DryRunItem, 0)}
 	seenTarget := make(map[string]struct{})
 
-	for _, src := range srcObjs {
-		ok, reason := applyFilters(src, rule)
-		tKey := mapTargetKey(src.Key, rule.SourcePrefix, rule.TargetPrefix)
-		if !ok {
-			result.Items = append(result.Items, DryRunItem{
-				SourceKey: src.Key, TargetKey: tKey, Size: src.Size, Action: ActionSkip, Reason: reason,
-			})
-			result.SkipCount++
-			continue
-		}
-		seenTarget[tKey] = struct{}{}
-		if dst, exists := dstByKey[tKey]; exists {
-			if dst.Size == src.Size && (dst.ETag == "" || src.ETag == "" || dst.ETag == src.ETag) {
-				result.Items = append(result.Items, DryRunItem{
-					SourceKey: src.Key, TargetKey: tKey, Size: src.Size, Action: ActionSkip, Reason: "already in sync",
-				})
-				result.SkipCount++
-				continue
-			}
-			result.Items = append(result.Items, DryRunItem{
-				SourceKey: src.Key, TargetKey: tKey, Size: src.Size, Action: ActionModify, Reason: "size or etag differs",
-			})
-			result.ModifyCount++
-			result.TotalBytesToSync += src.Size
-			continue
-		}
-		result.Items = append(result.Items, DryRunItem{
-			SourceKey: src.Key, TargetKey: tKey, Size: src.Size, Action: ActionAdd,
-		})
-		result.AddCount++
-		result.TotalBytesToSync += src.Size
-	}
+	classifyAgainstDestination(result, srcObjs, dstByKey, rule, rule.TargetBucket, rule.TargetPrefix, true, seenTarget)
 
 	if rule.DeleteOnTarget {
 		for _, dst := range dstObjs {
 			if _, keep := seenTarget[dst.Key]; keep {
 				continue
 			}
-			// Only consider keys under target prefix that look managed
+			// Only consider keys under primary target prefix that look managed.
 			result.Items = append(result.Items, DryRunItem{
-				TargetKey: dst.Key, Size: dst.Size, Action: ActionDelete, Reason: "not present on source",
+				TargetKey: dst.Key, Destination: rule.TargetBucket, Size: dst.Size,
+				Action: ActionDelete, Reason: "not present on source",
 			})
 			result.DeleteCount++
 		}
 	}
+
+	// Fan-out destinations on the same target provider (no delete-on-target for extras).
+	for _, extra := range db.ParseExtraTargets(rule.ExtraTargets) {
+		if extra.Bucket == rule.TargetBucket && extra.Prefix == rule.TargetPrefix {
+			continue // skip duplicate of primary
+		}
+		extraObjs, err := listObjects(ctx, dstCli, extra.Bucket, extra.Prefix)
+		if err != nil {
+			return nil, fmt.Errorf("list extra target %s: %w", extra.Bucket, err)
+		}
+		extraByKey := make(map[string]ObjectInfo, len(extraObjs))
+		for _, o := range extraObjs {
+			extraByKey[o.Key] = o
+		}
+		classifyAgainstDestination(result, srcObjs, extraByKey, rule, extra.Bucket, extra.Prefix, false, nil)
+	}
+
 	return result, nil
 }
 
@@ -397,21 +449,31 @@ func (e *Engine) runJob(ctx context.Context, job *db.JobRun, rule *db.SyncRule, 
 	for _, item := range result.Items {
 		switch item.Action {
 		case ActionAdd, ActionModify:
+			bucket := item.Destination
+			if bucket == "" {
+				bucket = rule.TargetBucket
+			}
 			tasks = append(tasks, transferTask{
-				SourceKey: item.SourceKey,
-				TargetKey: item.TargetKey,
-				Size:      item.Size,
-				Action:    item.Action,
+				SourceKey:    item.SourceKey,
+				TargetKey:    item.TargetKey,
+				TargetBucket: bucket,
+				Size:         item.Size,
+				Action:       item.Action,
 			})
 			totalBytes += item.Size
 		case ActionSkip:
 			stats.FilesSkipped.Add(1)
 			job.FilesSkipped++
 		case ActionDelete:
+			bucket := item.Destination
+			if bucket == "" {
+				bucket = rule.TargetBucket
+			}
 			tasks = append(tasks, transferTask{
-				TargetKey: item.TargetKey,
-				Size:      item.Size,
-				Action:    ActionDelete,
+				TargetKey:    item.TargetKey,
+				TargetBucket: bucket,
+				Size:         item.Size,
+				Action:       ActionDelete,
 			})
 		}
 	}
@@ -550,13 +612,17 @@ func (e *Engine) workerLoop(
 		if ctx.Err() != nil {
 			return
 		}
+		destBucket := task.TargetBucket
+		if destBucket == "" {
+			destBucket = rule.TargetBucket
+		}
 		stats.ActiveWorkers.Add(1)
 		metrics.ActiveWorkers.Inc()
 		stats.SetWorker(WorkerStatus{
 			WorkerID:  id,
 			Key:       task.SourceKey,
 			Source:    rule.SourceBucket + "/" + task.SourceKey,
-			Target:    rule.TargetBucket + "/" + task.TargetKey,
+			Target:    destBucket + "/" + task.TargetKey,
 			SizeBytes: task.Size,
 			Active:    true,
 		})
@@ -565,18 +631,18 @@ func (e *Engine) workerLoop(
 		switch task.Action {
 		case ActionDelete:
 			_, err = dst.S3.DeleteObject(ctx, &s3.DeleteObjectInput{
-				Bucket: aws.String(rule.TargetBucket),
+				Bucket: aws.String(destBucket),
 				Key:    aws.String(task.TargetKey),
 			})
 			if err == nil {
 				stats.FilesDone.Add(1)
-				e.log(job.ID, fmt.Sprintf("deleted s3://%s/%s", rule.TargetBucket, task.TargetKey))
+				e.log(job.ID, fmt.Sprintf("deleted s3://%s/%s", destBucket, task.TargetKey))
 			}
 		default:
 			err = e.streamCopy(ctx, id, src, dst, uploader, rule, task, stats)
 			if err == nil {
 				stats.FilesDone.Add(1)
-				e.log(job.ID, fmt.Sprintf("synced %s -> %s (%d bytes)", task.SourceKey, task.TargetKey, task.Size))
+				e.log(job.ID, fmt.Sprintf("synced %s -> s3://%s/%s (%d bytes)", task.SourceKey, destBucket, task.TargetKey, task.Size))
 			}
 		}
 
@@ -636,18 +702,23 @@ func (e *Engine) streamCopy(
 		copyErr <- err
 	}()
 
+	destBucket := task.TargetBucket
+	if destBucket == "" {
+		destBucket = rule.TargetBucket
+	}
+
 	// Annotate worker with keys for UI
 	stats.SetWorker(WorkerStatus{
 		WorkerID:  workerID,
 		Key:       task.SourceKey,
 		Source:    fmt.Sprintf("%s/%s", rule.SourceBucket, task.SourceKey),
-		Target:    fmt.Sprintf("%s/%s", rule.TargetBucket, task.TargetKey),
+		Target:    fmt.Sprintf("%s/%s", destBucket, task.TargetKey),
 		SizeBytes: size,
 		Active:    true,
 	})
 
 	_, upErr := uploader.Upload(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(rule.TargetBucket),
+		Bucket: aws.String(destBucket),
 		Key:    aws.String(task.TargetKey),
 		Body:   pr,
 	})

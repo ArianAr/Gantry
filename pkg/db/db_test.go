@@ -153,3 +153,19 @@ func TestJobRunLifecycle(t *testing.T) {
 		t.Fatalf("ListJobRuns: %v len=%d", err, len(list))
 	}
 }
+
+func TestParseExtraTargets(t *testing.T) {
+	got := ParseExtraTargets("backup;archive:cold/;  ;:skip")
+	if len(got) != 2 {
+		t.Fatalf("len=%d want 2: %+v", len(got), got)
+	}
+	if got[0].Bucket != "backup" || got[0].Prefix != "" {
+		t.Fatalf("got[0]=%+v", got[0])
+	}
+	if got[1].Bucket != "archive" || got[1].Prefix != "cold/" {
+		t.Fatalf("got[1]=%+v", got[1])
+	}
+	if ParseExtraTargets("") != nil {
+		t.Fatal("empty should be nil")
+	}
+}
