@@ -23,23 +23,16 @@ const tabs = [
   { id: 'providers', label: 'Providers', icon: Server },
 ]
 
-const TOKEN_KEY = 'gantry_api_token'
+// Keep API token in process memory only (never sessionStorage/localStorage).
+// CodeQL: js/clear-text-storage-of-sensitive-data — avoid browser durable storage.
+let memoryAPIToken = ''
 
 function getStoredToken() {
-  try {
-    return sessionStorage.getItem(TOKEN_KEY) || ''
-  } catch {
-    return ''
-  }
+  return memoryAPIToken
 }
 
 function setStoredToken(t) {
-  try {
-    if (t) sessionStorage.setItem(TOKEN_KEY, t)
-    else sessionStorage.removeItem(TOKEN_KEY)
-  } catch {
-    /* ignore */
-  }
+  memoryAPIToken = t ? String(t) : ''
 }
 
 function authHeaders() {
