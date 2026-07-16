@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ArianAr/Gantry/pkg/db"
+	"github.com/ArianAr/Gantry/pkg/metrics"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -366,6 +367,8 @@ func (e *Engine) StartJob(parent context.Context, ruleID string) (*db.JobRun, er
 	e.stats[job.ID] = stats
 	e.mu.Unlock()
 
+	metrics.JobsStarted.Inc()
+	metrics.ActiveJobs.Inc()
 	go e.runJob(ctx, job, rule, stats)
 	return job, nil
 }
@@ -520,6 +523,11 @@ func (e *Engine) runJob(ctx context.Context, job *db.JobRun, rule *db.SyncRule, 
 	job.FilesFailed = stats.FilesFailed.Load()
 	job.FilesSkipped = stats.FilesSkipped.Load()
 	_ = e.DB.UpdateJobRun(job)
+	metrics.ActiveJobs.Dec()
+	metrics.JobsCompleted.Inc()
+	metrics.BytesTransferred.Add(float64(job.BytesTransferred))
+	metrics.FilesTransferred.Add(float64(job.FilesTransferred))
+	metrics.FilesFailed.Add(float64(job.FilesFailed))
 	e.log(job.ID, "job completed")
 	e.Emitter.Emit(Event{Type: EventJob, JobID: job.ID, Message: "job completed", Timestamp: completed, Payload: job})
 }
@@ -543,6 +551,7 @@ func (e *Engine) workerLoop(
 			return
 		}
 		stats.ActiveWorkers.Add(1)
+		metrics.ActiveWorkers.Inc()
 		stats.SetWorker(WorkerStatus{
 			WorkerID:  id,
 			Key:       task.SourceKey,
@@ -579,6 +588,7 @@ func (e *Engine) workerLoop(
 
 		stats.ClearWorker(id)
 		stats.ActiveWorkers.Add(-1)
+		metrics.ActiveWorkers.Dec()
 
 		// Persist lightweight counters periodically
 		job.FilesTransferred = stats.FilesDone.Load()
@@ -657,6 +667,8 @@ func (e *Engine) failJob(job *db.JobRun, err error) {
 	job.ErrorMessage = err.Error()
 	job.CompletedAt = &completed
 	_ = e.DB.UpdateJobRun(job)
+	metrics.ActiveJobs.Dec()
+	metrics.JobsFailed.Inc()
 	e.log(job.ID, "job failed: "+err.Error())
 	e.Emitter.Emit(Event{Type: EventJob, JobID: job.ID, Message: "job failed: " + err.Error(), Timestamp: completed, Payload: job})
 }
@@ -666,6 +678,8 @@ func (e *Engine) cancelJob(job *db.JobRun) {
 	job.Status = db.JobStatusCancelled
 	job.CompletedAt = &completed
 	_ = e.DB.UpdateJobRun(job)
+	metrics.ActiveJobs.Dec()
+	metrics.JobsCancelled.Inc()
 	e.log(job.ID, "job cancelled")
 	e.Emitter.Emit(Event{Type: EventJob, JobID: job.ID, Message: "job cancelled", Timestamp: completed, Payload: job})
 }

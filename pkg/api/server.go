@@ -8,6 +8,7 @@ import (
 	"github.com/ArianAr/Gantry/pkg/db"
 	"github.com/ArianAr/Gantry/pkg/s3"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // Options configures the HTTP server.
@@ -37,6 +38,8 @@ func NewRouter(opts Options) (*gin.Engine, *Server) {
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+	// Prometheus metrics (unauthenticated; protect at network edge if needed)
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	api := r.Group("/api")
 	srv.RegisterAPI(api)

@@ -149,6 +149,8 @@ When set, provider `secret_access_key` values are stored as AES-256-GCM cipherte
 | `GET` | `/api/jobs` | Recent job runs |
 | `GET` | `/api/jobs/stream` | SSE live metrics |
 | `GET` | `/api/version` | Build version info |
+| `GET` | `/metrics` | Prometheus metrics (unauthenticated; protect at network edge) |
+| `GET` | `/healthz` | Liveness probe |
 
 ---
 

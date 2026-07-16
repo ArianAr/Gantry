@@ -91,7 +91,7 @@ Goal: make network-exposed and always-on deployments safer and more operationall
 
 ## M6 — Observability & reliability (planned)
 
-- [ ] Prometheus metrics (`/metrics`): job counts, bytes, errors, active workers
+- [x] Prometheus metrics (`/metrics`): job counts, bytes, errors, active workers
 - [ ] Optional OpenTelemetry traces for transfer spans
 - [ ] Job history retention / purge policy
 - [ ] Stronger cancel + resume semantics
