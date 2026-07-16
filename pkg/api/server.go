@@ -34,9 +34,17 @@ func NewRouter(opts Options) (*gin.Engine, *Server) {
 	r := gin.New()
 	r.Use(gin.Recovery(), gin.Logger(), opts.Auth.Middleware())
 
-	// Health (also allowed by auth middleware)
+	// Liveness: process is up
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+	// Readiness: database reachable
+	r.GET("/readyz", func(c *gin.Context) {
+		if err := opts.DB.Ping(); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not_ready", "error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ready"})
 	})
 	// Prometheus metrics (unauthenticated; protect at network edge if needed)
 	r.GET("/metrics", gin.WrapH(promhttp.Handler()))

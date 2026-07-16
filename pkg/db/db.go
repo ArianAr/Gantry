@@ -389,3 +389,23 @@ func (d *DB) ListActiveJobs() ([]JobRun, error) {
 	}).Order("rowid asc").Find(&list).Error
 	return list, err
 }
+
+// PurgeOldJobs deletes terminal job runs whose completed_at is older than cutoff.
+// Returns the number of rows deleted. Never touches queued/active/dry_running jobs.
+func (d *DB) PurgeOldJobs(cutoff time.Time) (int64, error) {
+	res := d.gorm.Where(
+		"status IN ? AND completed_at IS NOT NULL AND completed_at < ?",
+		[]string{JobStatusCompleted, JobStatusFailed, JobStatusCancelled},
+		cutoff.UTC(),
+	).Delete(&JobRun{})
+	return res.RowsAffected, res.Error
+}
+
+// Ping checks the underlying SQL connection (for readiness probes).
+func (d *DB) Ping() error {
+	sqlDB, err := d.gorm.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Ping()
+}
