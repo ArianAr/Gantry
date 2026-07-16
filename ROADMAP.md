@@ -63,11 +63,11 @@ This document is the product plan for Gantry. Status reflects `main` as of the l
 Goal: make network-exposed and always-on deployments safer and more operationally useful without multi-tenant complexity.
 
 ### M5.1 Operator authentication
-- [ ] Optional shared API token (`GANTRY_API_TOKEN` / `-api-token`)
-- [ ] Reverse-proxy identity headers (`Remote-User` / `X-Remote-User` / `X-Forwarded-User`)
-- [ ] Dashboard token prompt; SSE token via query (`access_token`)
-- [ ] `/healthz` remains unauthenticated for probes
-- [ ] Document threat model updates in SECURITY.md / README
+- [x] Optional shared API token (`GANTRY_API_TOKEN` / `-api-token`)
+- [x] Reverse-proxy identity headers (`Remote-User` / `X-Remote-User` / `X-Forwarded-User`)
+- [x] Dashboard token prompt; SSE token via query (`access_token`)
+- [x] `/healthz` remains unauthenticated for probes
+- [x] Document threat model updates in SECURITY.md / README
 
 ### M5.2 Secret hygiene
 - [ ] Encryption at rest for provider secrets (local key via env / file)

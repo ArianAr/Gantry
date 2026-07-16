@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Optional operator auth: `GANTRY_API_TOKEN` / `-api-token`, reverse-proxy identity headers, dashboard token prompt, SSE `access_token` query support
+
 ### Changed
 - Multi-arch Docker builds cross-compile Go on the host platform instead of QEMU-emulating arm64 (much faster image builds)
 

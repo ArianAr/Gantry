@@ -86,6 +86,8 @@ Dark single-page console with three tabs:
 |------|---------|-------------|
 | `-addr` | `:8080` | HTTP listen address |
 | `-db` | `gantry.db` | SQLite database path |
+| `-api-token` | empty | Shared API token; empty disables auth |
+| `-trust-proxy-headers` | `false` | Trust `Remote-User` / `X-Remote-User` / `X-Forwarded-User` |
 | `-version` | — | Print version and exit |
 
 Environment (optional):
@@ -94,6 +96,28 @@ Environment (optional):
 |----------|-------------|
 | `GANTRY_ADDR` | Overrides listen address if flag is default |
 | `GANTRY_DB` | Overrides database path if flag is default |
+| `GANTRY_API_TOKEN` | Shared API token (same as `-api-token`) |
+| `GANTRY_TRUST_PROXY_HEADERS` | `true`/`false` — reverse-proxy identity headers |
+
+### Authentication
+
+By default Gantry is **open** (local operator model). To require a shared token:
+
+```bash
+export GANTRY_API_TOKEN='long-random-secret'
+./gantry -addr :8080
+# or: docker run -e GANTRY_API_TOKEN=... -p 8080:8080 ghcr.io/arianar/gantry:latest
+```
+
+Clients may send:
+
+- `Authorization: Bearer <token>`
+- `X-API-Key: <token>`
+- `?access_token=<token>` (for browser EventSource / SSE)
+
+`/healthz` stays open for probes. The dashboard prompts for the token when it receives HTTP 401.
+
+Behind a trusted reverse proxy you can set `-trust-proxy-headers` so a non-empty `Remote-User` / `X-Remote-User` / `X-Forwarded-User` is accepted. **Only enable this when untrusted clients cannot reach Gantry directly.**
 
 ---
 
