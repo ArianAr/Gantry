@@ -75,15 +75,15 @@ Goal: make network-exposed and always-on deployments safer and more operationall
 - [x] Audit that secrets never appear in logs, SSE, or dry-run payloads
 
 ### M5.3 Scheduled sync
-- [ ] Cron expression (or simple interval) per `SyncRule`
-- [ ] Enable/disable schedule without deleting the rule
-- [ ] In-process scheduler; skip overlapping runs for the same rule
-- [ ] Surface next run time + last scheduled job in API/UI
+- [x] Cron expression (or simple interval) per `SyncRule`
+- [x] Enable/disable schedule without deleting the rule
+- [x] In-process scheduler; skip overlapping runs for the same rule
+- [x] Surface next run time + last scheduled job in API/UI
 
 ### M5.4 Ops polish
-- [ ] Graceful job cancel from UI (API already has cancel path — wire end-to-end)
-- [ ] Configurable listen / DB via documented env (already partial)
-- [ ] Structured logging option (JSON) for journald / containers
+- [x] Graceful job cancel from UI (API already has cancel path — wire end-to-end)
+- [x] Configurable listen / DB via documented env (already partial)
+- [x] Structured logging option (JSON) for journald / containers
 
 **Exit criteria:** auth optional but production-documented; secrets encrypted at rest; at least one schedule mechanism working end-to-end; v0.2.0 release.
 

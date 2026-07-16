@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Server,
   Settings2,
+  Square,
   Trash2,
   Zap,
   CheckCircle2,
@@ -124,6 +125,8 @@ const emptyRule = {
   delete_on_target: false,
   concurrency_limit: 4,
   bandwidth_limit_kbps: 0,
+  schedule_cron: '',
+  schedule_enabled: false,
 }
 
 export default function App() {
@@ -316,6 +319,20 @@ export default function App() {
       await api(`/api/rules/${ruleId}/start`, { method: 'POST', body: '{}' })
       setTab('progress')
       setLogs((prev) => [...prev, { t: new Date().toISOString(), m: 'job start requested', job: ruleId }])
+      await refresh()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function cancelJob(jobId) {
+    setBusy(true)
+    setError('')
+    try {
+      await api(`/api/jobs/${jobId}/cancel`, { method: 'POST', body: '{}' })
+      setLogs((prev) => [...prev, { t: new Date().toISOString(), m: `cancel requested for ${jobId.slice(0, 8)}`, job: jobId }])
       await refresh()
     } catch (err) {
       setError(err.message)
@@ -519,14 +536,27 @@ export default function App() {
                 <h2 className="text-sm font-semibold mb-3">Recent jobs</h2>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
                   {(jobs || []).slice(0, 12).map((j) => (
-                    <div key={j.id} className="flex items-center justify-between text-sm rounded-lg border border-slate-800 px-3 py-2 bg-surface-900/40">
-                      <div>
+                    <div key={j.id} className="flex items-center justify-between gap-2 text-sm rounded-lg border border-slate-800 px-3 py-2 bg-surface-900/40">
+                      <div className="min-w-0">
                         <div className="font-mono text-xs text-slate-400">{j.id.slice(0, 8)}</div>
                         <div className="text-xs text-slate-500">
                           {formatBytes(j.bytes_transferred)} · {j.files_transferred} files
                         </div>
                       </div>
-                      <StatusPill status={j.status} />
+                      <div className="flex items-center gap-2 shrink-0">
+                        {['queued', 'active', 'dry_running'].includes(j.status) && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => cancelJob(j.id)}
+                            className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded border border-red-500/40 text-red-300 hover:bg-red-950/40"
+                            title="Cancel job"
+                          >
+                            <Square className="h-3 w-3" /> Cancel
+                          </button>
+                        )}
+                        <StatusPill status={j.status} />
+                      </div>
                     </div>
                   ))}
                   {jobs?.length === 0 && <p className="text-sm text-slate-500">No jobs yet.</p>}
@@ -702,6 +732,16 @@ export default function App() {
                 <input type="checkbox" checked={ruleForm.delete_on_target} onChange={(e) => setRuleForm({ ...ruleForm, delete_on_target: e.target.checked })} />
                 Strict mirror (delete on target)
               </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block text-xs text-slate-400 col-span-2">
+                  Schedule cron (5-field, e.g. */15 * * * *)
+                  <input className="field" placeholder="leave empty for manual only" value={ruleForm.schedule_cron} onChange={(e) => setRuleForm({ ...ruleForm, schedule_cron: e.target.value })} />
+                </label>
+                <label className="flex items-center gap-2 text-sm text-slate-300 col-span-2">
+                  <input type="checkbox" checked={ruleForm.schedule_enabled} onChange={(e) => setRuleForm({ ...ruleForm, schedule_enabled: e.target.checked })} />
+                  Enable schedule
+                </label>
+              </div>
               <button type="submit" disabled={busy} className="w-full rounded-md bg-blue-600 hover:bg-blue-500 py-2 text-sm font-medium">
                 Save rule
               </button>
@@ -721,6 +761,9 @@ export default function App() {
                           </div>
                           <div className="text-[11px] text-slate-500 mt-0.5">
                             {r.delete_on_target ? 'Mirror' : 'Safe sync'} · concurrency {r.concurrency_limit}
+                            {r.schedule_enabled && r.schedule_cron
+                              ? ` · cron ${r.schedule_cron}${r.next_run_at ? ` · next ${new Date(r.next_run_at).toLocaleString()}` : ''}`
+                              : ''}
                           </div>
                         </div>
                         <div className="flex flex-col gap-1">

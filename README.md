@@ -89,6 +89,7 @@ Dark single-page console with three tabs:
 | `-api-token` | empty | Shared API token; empty disables auth |
 | `-secrets-key` | empty | Encrypt provider secrets at rest (AES-256-GCM); empty = plaintext in DB |
 | `-trust-proxy-headers` | `false` | Trust `Remote-User` / `X-Remote-User` / `X-Forwarded-User` |
+| `-log-json` | `false` | Emit process logs as JSON lines (stdout) |
 | `-version` | — | Print version and exit |
 
 Environment (optional):
@@ -100,6 +101,7 @@ Environment (optional):
 | `GANTRY_API_TOKEN` | Shared API token (same as `-api-token`) |
 | `GANTRY_SECRETS_KEY` | Passphrase for at-rest encryption of provider secrets |
 | `GANTRY_TRUST_PROXY_HEADERS` | `true`/`false` — reverse-proxy identity headers |
+| `GANTRY_LOG_JSON` | `true`/`false` — JSON process logs |
 
 ### Authentication
 

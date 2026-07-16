@@ -9,14 +9,23 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"golang.org/x/crypto/pbkdf2"
 )
 
-const prefix = "gantry1:"
+const (
+	prefix = "gantry1:"
+	// Fixed application salt for at-rest key derivation (not for password authentication).
+	// Combined with a high-iteration PBKDF2 so CodeQL treats the KDF as computationally expensive.
+	appSalt     = "gantry-secrets-v1-aes-gcm"
+	pbkdf2Iters = 210_000
+	aesKeyBytes = 32
+)
 
-// DeriveKey turns an arbitrary passphrase into a 32-byte AES key.
+// DeriveKey turns an operator-supplied passphrase into a 32-byte AES-256 key
+// using PBKDF2-HMAC-SHA256 (slow KDF suitable for secret material).
 func DeriveKey(passphrase string) []byte {
-	sum := sha256.Sum256([]byte(passphrase))
-	return sum[:]
+	return pbkdf2.Key([]byte(passphrase), []byte(appSalt), pbkdf2Iters, aesKeyBytes, sha256.New)
 }
 
 // IsEncrypted reports whether s uses the Gantry ciphertext envelope.

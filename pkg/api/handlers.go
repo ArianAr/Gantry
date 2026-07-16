@@ -11,11 +11,18 @@ import (
 	"gorm.io/gorm"
 )
 
+// CronValidator validates and computes next cron fire times (optional).
+type CronValidator interface {
+	ValidateCron(expr string) error
+	NextRun(expr string, from time.Time) (*time.Time, error)
+}
+
 // Server holds API dependencies.
 type Server struct {
-	DB     *db.DB
-	Engine *s3.Engine
-	Hub    *Hub
+	DB        *db.DB
+	Engine    *s3.Engine
+	Hub       *Hub
+	Scheduler CronValidator // optional; used for schedule_cron validation
 }
 
 // RegisterAPI mounts REST routes on the given engine group (typically /api).
@@ -168,6 +175,8 @@ type ruleRequest struct {
 	DeleteOnTarget     bool    `json:"delete_on_target"`
 	ConcurrencyLimit   int     `json:"concurrency_limit"`
 	BandwidthLimitKbps int     `json:"bandwidth_limit_kbps"`
+	ScheduleCron       string  `json:"schedule_cron"`
+	ScheduleEnabled    bool    `json:"schedule_enabled"`
 }
 
 func (s *Server) listRules(c *gin.Context) {
@@ -201,6 +210,8 @@ func (s *Server) createOrUpdateRule(c *gin.Context) {
 		DeleteOnTarget:     req.DeleteOnTarget,
 		ConcurrencyLimit:   req.ConcurrencyLimit,
 		BandwidthLimitKbps: req.BandwidthLimitKbps,
+		ScheduleCron:       req.ScheduleCron,
+		ScheduleEnabled:    req.ScheduleEnabled,
 	}
 	if req.ModifiedAfter != nil && *req.ModifiedAfter != "" {
 		t, err := time.Parse(time.RFC3339, *req.ModifiedAfter)
@@ -210,6 +221,29 @@ func (s *Server) createOrUpdateRule(c *gin.Context) {
 		}
 		utc := t.UTC()
 		rule.ModifiedAfter = &utc
+	}
+	if s.Scheduler != nil {
+		if err := s.Scheduler.ValidateCron(rule.ScheduleCron); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid schedule_cron: " + err.Error()})
+			return
+		}
+		if rule.ScheduleEnabled && rule.ScheduleCron != "" {
+			next, err := s.Scheduler.NextRun(rule.ScheduleCron, time.Now().UTC())
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid schedule_cron: " + err.Error()})
+				return
+			}
+			rule.NextRunAt = next
+		} else {
+			rule.NextRunAt = nil
+			rule.ScheduleEnabled = false
+		}
+	}
+	// Preserve LastScheduledAt on update
+	if rule.ID != "" {
+		if existing, err := s.DB.GetRule(rule.ID); err == nil && existing != nil {
+			rule.LastScheduledAt = existing.LastScheduledAt
+		}
 	}
 	if err := s.DB.CreateOrUpdateRule(rule); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
