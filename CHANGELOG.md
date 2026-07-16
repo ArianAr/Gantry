@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-target fan-out: rule `extra_targets` (`bucket` or `bucket:prefix`, semicolon-separated) on the same target provider
 - Job queue with rule `priority` and `GANTRY_MAX_CONCURRENT_JOBS` / `-max-concurrent-jobs` (default 2)
 - Providers UI: known-provider dropdown (AWS, R2, ArvanCloud, MinIO, Alibaba, Parspack, Hetzner, Dunkel, …) with prefilled editable fields + manual entry
+- Bidirectional sync (`bidirectional`): forward pass then reverse (reverse never deletes or fans out)
+- Active hours / maintenance windows (`active_hours_utc`, e.g. `09:00-17:00`) — jobs and schedules skip outside UTC windows (pairs with bandwidth limit for bandwidth schedules)
 
 ### Changed
 - Multi-arch Docker builds cross-compile Go on the host platform instead of QEMU-emulating arm64 (much faster image builds)

@@ -167,6 +167,16 @@ func (s *Scheduler) tick(ctx context.Context, now time.Time) {
 			}
 			continue
 		}
+		// Maintenance / bandwidth window: skip outside active hours (UTC)
+		if !db.InActiveHours(r.ActiveHoursUTC, now) {
+			log.Printf("schedule: skip rule %s (%s): outside active hours %q UTC", r.ID, r.Name, r.ActiveHoursUTC)
+			next, err := s.NextRun(r.ScheduleCron, now)
+			if err == nil && next != nil {
+				r.NextRunAt = next
+				_ = s.DB.CreateOrUpdateRule(r)
+			}
+			continue
+		}
 		log.Printf("schedule: starting rule %s (%s)", r.ID, r.Name)
 		if _, err := s.Engine.StartJob(ctx, r.ID); err != nil {
 			log.Printf("schedule: start rule %s: %v", r.ID, err)

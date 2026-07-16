@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ArianAr/Gantry/internal/version"
@@ -180,6 +181,8 @@ type ruleRequest struct {
 	ScheduleCron       string  `json:"schedule_cron"`
 	ScheduleEnabled    bool    `json:"schedule_enabled"`
 	Priority           int     `json:"priority"`
+	Bidirectional      bool    `json:"bidirectional"`
+	ActiveHoursUTC     string  `json:"active_hours_utc"`
 }
 
 func (s *Server) listRules(c *gin.Context) {
@@ -218,6 +221,12 @@ func (s *Server) createOrUpdateRule(c *gin.Context) {
 		ScheduleCron:       req.ScheduleCron,
 		ScheduleEnabled:    req.ScheduleEnabled,
 		Priority:           req.Priority,
+		Bidirectional:      req.Bidirectional,
+		ActiveHoursUTC:     strings.TrimSpace(req.ActiveHoursUTC),
+	}
+	if err := db.ValidateActiveHours(rule.ActiveHoursUTC); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid active_hours_utc: " + err.Error()})
+		return
 	}
 	if req.ModifiedAfter != nil && *req.ModifiedAfter != "" {
 		t, err := time.Parse(time.RFC3339, *req.ModifiedAfter)

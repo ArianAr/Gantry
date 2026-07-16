@@ -73,6 +73,11 @@ type SyncRule struct {
 	CompareMode string `gorm:"default:etag" json:"compare_mode"`
 	// Priority: higher values start before lower when the job queue has free slots (default 0).
 	Priority int `gorm:"default:0" json:"priority"`
+	// Bidirectional runs a reverse pass after the forward sync (never deletes on reverse).
+	Bidirectional bool `gorm:"default:false" json:"bidirectional"`
+	// ActiveHoursUTC is optional maintenance windows: "09:00-17:00" or "09:00-12:00,13:00-18:00" (UTC).
+	// Empty = always active. Jobs refuse to start (and schedules skip) outside these windows.
+	ActiveHoursUTC string `json:"active_hours_utc"`
 	// ScheduleCron is a standard 5-field cron expression (min hour dom mon dow). Empty = no schedule.
 	ScheduleCron    string     `json:"schedule_cron"`
 	ScheduleEnabled bool       `gorm:"default:false" json:"schedule_enabled"`

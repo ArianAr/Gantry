@@ -17,8 +17,8 @@ This document is the product plan for Gantry. Status reflects `main` as of the l
 | **M3** | Dashboard & image | **Done** |
 | **M4** | Release & registry | **Done** (v0.1.0) |
 | **M5** | Hardening & operations | **Done** (v0.2.0) |
-| **M6** | Observability & reliability | Planned |
-| **M7** | Advanced sync | Planned |
+| **M6** | Observability & reliability | **Done** |
+| **M7** | Advanced sync | **Done** |
 
 ---
 
@@ -89,28 +89,28 @@ Goal: make network-exposed and always-on deployments safer and more operationall
 
 ---
 
-## M6 — Observability & reliability (planned)
+## M6 — Observability & reliability ✅
 
 - [x] Prometheus metrics (`/metrics`): job counts, bytes, errors, active workers
-- [ ] Optional OpenTelemetry traces for transfer spans
 - [x] Job history retention / purge policy
 - [x] Stronger cancel + resume semantics (cancel API + UI; no mid-object resume for S3 streams)
 - [x] Health/readiness split if needed (`/healthz` vs `/readyz`)
-- [x] Chaos-friendly timeouts and retry policy documentation
+- [x] Chaos-friendly timeouts and retry policy documentation (`docs/ops.md`)
+- [ ] Optional OpenTelemetry traces for transfer spans — **deferred post-1.0** (optional stretch; not exit criteria)
 
-**Exit criteria:** scrapeable metrics; retention controls; documented ops runbook; v0.3.0.
+**Exit criteria:** scrapeable metrics; retention controls; documented ops runbook — **met**.
 
 ---
 
-## M7 — Advanced sync (planned)
+## M7 — Advanced sync ✅
 
 - [x] Object integrity modes (size + ETag default; size-only mode)
 - [x] Multi-job queue prioritization UI (priority + max concurrent jobs)
 - [x] Multi-target fan-out (one source → N destinations via `extra_targets`)
-- [ ] Bidirectional sync (explicit, carefully scoped)
-- [ ] Bandwidth schedules / maintenance windows
+- [x] Bidirectional sync (explicit; reverse never deletes / no fan-out)
+- [x] Bandwidth schedules / maintenance windows (`active_hours_utc` + per-rule bandwidth limit)
 
-**Exit criteria:** at least integrity mode + multi-target or queue UX; major version only if API breaks.
+**Exit criteria:** integrity mode + multi-target + queue UX + bidirectional/windows — **met** (v1.0.0).
 
 ---
 
