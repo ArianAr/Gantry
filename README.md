@@ -87,6 +87,7 @@ Dark single-page console with three tabs:
 | `-addr` | `:8080` | HTTP listen address |
 | `-db` | `gantry.db` | SQLite database path |
 | `-api-token` | empty | Shared API token; empty disables auth |
+| `-secrets-key` | empty | Encrypt provider secrets at rest (AES-256-GCM); empty = plaintext in DB |
 | `-trust-proxy-headers` | `false` | Trust `Remote-User` / `X-Remote-User` / `X-Forwarded-User` |
 | `-version` | — | Print version and exit |
 
@@ -97,6 +98,7 @@ Environment (optional):
 | `GANTRY_ADDR` | Overrides listen address if flag is default |
 | `GANTRY_DB` | Overrides database path if flag is default |
 | `GANTRY_API_TOKEN` | Shared API token (same as `-api-token`) |
+| `GANTRY_SECRETS_KEY` | Passphrase for at-rest encryption of provider secrets |
 | `GANTRY_TRUST_PROXY_HEADERS` | `true`/`false` — reverse-proxy identity headers |
 
 ### Authentication
@@ -118,6 +120,15 @@ Clients may send:
 `/healthz` stays open for probes. The dashboard prompts for the token when it receives HTTP 401.
 
 Behind a trusted reverse proxy you can set `-trust-proxy-headers` so a non-empty `Remote-User` / `X-Remote-User` / `X-Forwarded-User` is accepted. **Only enable this when untrusted clients cannot reach Gantry directly.**
+
+### Encrypting secrets at rest
+
+```bash
+export GANTRY_SECRETS_KEY='long-random-passphrase'
+./gantry -db ./gantry.db
+```
+
+When set, provider `secret_access_key` values are stored as AES-256-GCM ciphertext (`gantry1:…`). Existing plaintext rows are re-encrypted on startup. Without a key, secrets remain plaintext in SQLite (local lab default).
 
 ---
 

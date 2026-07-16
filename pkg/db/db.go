@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ArianAr/Gantry/pkg/secrets"
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -117,16 +118,22 @@ func (JobRun) TableName() string { return "job_runs" }
 
 // DB wraps a GORM connection.
 type DB struct {
-	gorm *gorm.DB
+	gorm       *gorm.DB
+	secretsKey string // optional AES key material for provider secrets
 }
 
 // Gorm exposes the underlying *gorm.DB for advanced queries.
 func (d *DB) Gorm() *gorm.DB { return d.gorm }
 
 // Open initializes SQLite at path and runs auto-migrations.
-func Open(path string) (*DB, error) {
+// secretsKey encrypts provider secrets at rest when non-empty (AES-256-GCM).
+func Open(path string, secretsKey ...string) (*DB, error) {
 	if path == "" {
 		path = "gantry.db"
+	}
+	key := ""
+	if len(secretsKey) > 0 {
+		key = secretsKey[0]
 	}
 	// WAL mode and busy timeout for concurrent readers/writers.
 	dsn := fmt.Sprintf("%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)", path)
@@ -136,9 +143,14 @@ func Open(path string) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
-	d := &DB{gorm: g}
+	d := &DB{gorm: g, secretsKey: key}
 	if err := d.migrate(); err != nil {
 		return nil, err
+	}
+	if key != "" {
+		if err := d.migratePlaintextSecrets(); err != nil {
+			return nil, fmt.Errorf("migrate secrets: %w", err)
+		}
 	}
 	return d, nil
 }
@@ -174,23 +186,80 @@ func (d *DB) CreateProvider(p *Provider) error {
 	if p.CreatedAt.IsZero() {
 		p.CreatedAt = time.Now().UTC()
 	}
-	return d.gorm.Create(p).Error
+	enc, err := secrets.Encrypt(p.SecretAccessKey, d.secretsKey)
+	if err != nil {
+		return fmt.Errorf("encrypt secret: %w", err)
+	}
+	// Store encrypted form; keep caller's struct with plaintext for immediate use if needed.
+	store := *p
+	store.SecretAccessKey = enc
+	if err := d.gorm.Create(&store).Error; err != nil {
+		return err
+	}
+	p.ID = store.ID
+	p.CreatedAt = store.CreatedAt
+	return nil
 }
 
-// ListProviders returns all providers ordered by name.
+// ListProviders returns all providers ordered by name (secrets decrypted when key set).
 func (d *DB) ListProviders() ([]Provider, error) {
 	var list []Provider
 	err := d.gorm.Order("name asc").Find(&list).Error
-	return list, err
+	if err != nil {
+		return nil, err
+	}
+	for i := range list {
+		if err := d.decryptProvider(&list[i]); err != nil {
+			return nil, err
+		}
+	}
+	return list, nil
 }
 
-// GetProvider loads a provider by ID.
+// GetProvider loads a provider by ID (secret decrypted when key set).
 func (d *DB) GetProvider(id string) (*Provider, error) {
 	var p Provider
 	if err := d.gorm.First(&p, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
+	if err := d.decryptProvider(&p); err != nil {
+		return nil, err
+	}
 	return &p, nil
+}
+
+func (d *DB) decryptProvider(p *Provider) error {
+	plain, err := secrets.Decrypt(p.SecretAccessKey, d.secretsKey)
+	if err != nil {
+		return fmt.Errorf("provider %s: %w", p.ID, err)
+	}
+	p.SecretAccessKey = plain
+	return nil
+}
+
+// migratePlaintextSecrets re-encrypts any legacy plaintext provider secrets.
+func (d *DB) migratePlaintextSecrets() error {
+	if d.secretsKey == "" {
+		return nil
+	}
+	var list []Provider
+	if err := d.gorm.Find(&list).Error; err != nil {
+		return err
+	}
+	for _, p := range list {
+		if secrets.IsEncrypted(p.SecretAccessKey) {
+			continue
+		}
+		enc, err := secrets.Encrypt(p.SecretAccessKey, d.secretsKey)
+		if err != nil {
+			return err
+		}
+		if err := d.gorm.Model(&Provider{}).Where("id = ?", p.ID).
+			Update("secret_access_key", enc).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // DeleteProvider removes a provider if no rules reference it.

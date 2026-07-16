@@ -70,9 +70,9 @@ Goal: make network-exposed and always-on deployments safer and more operationall
 - [x] Document threat model updates in SECURITY.md / README
 
 ### M5.2 Secret hygiene
-- [ ] Encryption at rest for provider secrets (local key via env / file)
-- [ ] Key rotation notes and migrate path for existing `gantry.db`
-- [ ] Audit that secrets never appear in logs, SSE, or dry-run payloads
+- [x] Encryption at rest for provider secrets (local key via env / file)
+- [x] Key rotation notes and migrate path for existing `gantry.db`
+- [x] Audit that secrets never appear in logs, SSE, or dry-run payloads
 
 ### M5.3 Scheduled sync
 - [ ] Cron expression (or simple interval) per `SyncRule`

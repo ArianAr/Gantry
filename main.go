@@ -26,6 +26,7 @@ func main() {
 	addr := flag.String("addr", envOr("GANTRY_ADDR", ":8080"), "HTTP listen address")
 	dbPath := flag.String("db", envOr("GANTRY_DB", "gantry.db"), "SQLite database path")
 	apiToken := flag.String("api-token", envOr("GANTRY_API_TOKEN", ""), "Shared API token (empty disables auth)")
+	secretsKey := flag.String("secrets-key", envOr("GANTRY_SECRETS_KEY", ""), "Encrypt provider secrets at rest (empty = plaintext in DB)")
 	trustProxy := flag.Bool("trust-proxy-headers", envBool("GANTRY_TRUST_PROXY_HEADERS", false), "Trust Remote-User / X-Remote-User from reverse proxy")
 	showVersion := flag.Bool("version", false, "Print version and exit")
 	flag.Parse()
@@ -35,7 +36,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	database, err := db.Open(*dbPath)
+	database, err := db.Open(*dbPath, *secretsKey)
 	if err != nil {
 		log.Fatalf("database: %v", err)
 	}
@@ -71,7 +72,11 @@ func main() {
 		} else if auth.TrustProxyHeaders {
 			authMode = "proxy-headers"
 		}
-		log.Printf("Gantry %s listening on %s (db=%s, auth=%s)", version.Version, *addr, *dbPath, authMode)
+		secMode := "plaintext"
+		if *secretsKey != "" {
+			secMode = "encrypted"
+		}
+		log.Printf("Gantry %s listening on %s (db=%s, auth=%s, secrets=%s)", version.Version, *addr, *dbPath, authMode, secMode)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server: %v", err)
 		}
